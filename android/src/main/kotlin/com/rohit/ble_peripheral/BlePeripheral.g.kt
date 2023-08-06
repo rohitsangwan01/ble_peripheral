@@ -527,4 +527,16 @@ class BleCallback(private val binaryMessenger: BinaryMessenger) {
       callback()
     }
   }
+  fun onConnectionStateChange(centralArg: BleCentral, connectedArg: Boolean, callback: () -> Unit) {
+    val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.ble_peripheral.BleCallback.onConnectionStateChange", codec)
+    channel.send(listOf(centralArg, connectedArg)) {
+      callback()
+    }
+  }
+  fun onBondStateChange(centralArg: BleCentral, bondStateArg: Long, callback: () -> Unit) {
+    val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.ble_peripheral.BleCallback.onBondStateChange", codec)
+    channel.send(listOf(centralArg, bondStateArg)) {
+      callback()
+    }
+  }
 }

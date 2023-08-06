@@ -23,7 +23,7 @@
         },
         {
             "name": "example",
-            "cwd": "example_app",
+            "cwd": "example",
             "request": "launch",
             "type": "dart"
         },

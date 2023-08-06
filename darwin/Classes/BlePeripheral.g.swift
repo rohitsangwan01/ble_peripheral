@@ -477,4 +477,16 @@ class BleCallback {
       completion()
     }
   }
+  func onConnectionStateChange(central centralArg: BleCentral, connected connectedArg: Bool, completion: @escaping () -> Void) {
+    let channel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.ble_peripheral.BleCallback.onConnectionStateChange", binaryMessenger: binaryMessenger, codec: codec)
+    channel.sendMessage([centralArg, connectedArg] as [Any?]) { _ in
+      completion()
+    }
+  }
+  func onBondStateChange(central centralArg: BleCentral, bondState bondStateArg: Int64, completion: @escaping () -> Void) {
+    let channel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.ble_peripheral.BleCallback.onBondStateChange", binaryMessenger: binaryMessenger, codec: codec)
+    channel.sendMessage([centralArg, bondStateArg] as [Any?]) { _ in
+      completion()
+    }
+  }
 }

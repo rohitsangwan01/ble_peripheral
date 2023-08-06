@@ -21,7 +21,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.media.audiofx.AudioEffect.Descriptor
 import android.os.Build
 import android.os.Handler
 import android.os.ParcelUuid
@@ -160,6 +159,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
     ) {
         val device = bluetoothDevicesMap[central.uuid.value] ?: throw Exception("Device not found")
         val char = characteristic.find() ?: throw Exception("Characteristic not found")
+        //Log.e("Test", "updateCharacteristic: ${char.uuid} -> ${value.contentToString()}")
         handler.post {
             char.value = value
             gattServer?.notifyCharacteristicChanged(
@@ -252,7 +252,10 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
     private fun onConnectionUpdate(device: BluetoothDevice, status: Int, newState: Int) {
         Log.e(TAG, "onConnectionStateChange: $status -> $newState")
         handler.post {
-
+            bleCallback?.onConnectionStateChange(
+                BleCentral(uuid = UUID(value = device.address)),
+                newState == BluetoothProfile.STATE_CONNECTED,
+            ) {}
         }
     }
 
@@ -478,11 +481,6 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
                 )
                 Log.e(TAG, "onDescriptorWriteRequest, uuid: " + descriptor.uuid)
             }
-
-            override fun onNotificationSent(device: BluetoothDevice?, status: Int) {
-                super.onNotificationSent(device, status)
-                Log.d(TAG, "onNotificationSent: $status")
-            }
         }
 
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
@@ -523,11 +521,13 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
             } else if (action == BluetoothDevice.ACTION_BOND_STATE_CHANGED) {
                 val state =
                     intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.ERROR)
+                val device: BluetoothDevice? =
+                    intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
                 handler.post {
-
-                }
-                if (state == BluetoothDevice.BOND_BONDED) {
-
+                    bleCallback?.onBondStateChange(
+                        BleCentral(uuid = UUID(value = device?.address ?: "")),
+                        state.toBondState(),
+                    ) {}
                 }
             }
         }

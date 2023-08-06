@@ -467,6 +467,10 @@ abstract class BleCallback {
 
   void onServiceAdded(BleService service, String? error);
 
+  void onConnectionStateChange(BleCentral central, bool connected);
+
+  void onBondStateChange(BleCentral central, int bondState);
+
   static void setup(BleCallback? api, {BinaryMessenger? binaryMessenger}) {
     {
       final BasicMessageChannel<Object?> channel = BasicMessageChannel<Object?>(
@@ -635,6 +639,50 @@ abstract class BleCallback {
               'Argument for dev.flutter.pigeon.ble_peripheral.BleCallback.onServiceAdded was null, expected non-null BleService.');
           final String? arg_error = (args[1] as String?);
           api.onServiceAdded(arg_service!, arg_error);
+          return;
+        });
+      }
+    }
+    {
+      final BasicMessageChannel<Object?> channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.ble_peripheral.BleCallback.onConnectionStateChange', codec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        channel.setMessageHandler(null);
+      } else {
+        channel.setMessageHandler((Object? message) async {
+          assert(message != null,
+          'Argument for dev.flutter.pigeon.ble_peripheral.BleCallback.onConnectionStateChange was null.');
+          final List<Object?> args = (message as List<Object?>?)!;
+          final BleCentral? arg_central = (args[0] as BleCentral?);
+          assert(arg_central != null,
+              'Argument for dev.flutter.pigeon.ble_peripheral.BleCallback.onConnectionStateChange was null, expected non-null BleCentral.');
+          final bool? arg_connected = (args[1] as bool?);
+          assert(arg_connected != null,
+              'Argument for dev.flutter.pigeon.ble_peripheral.BleCallback.onConnectionStateChange was null, expected non-null bool.');
+          api.onConnectionStateChange(arg_central!, arg_connected!);
+          return;
+        });
+      }
+    }
+    {
+      final BasicMessageChannel<Object?> channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.ble_peripheral.BleCallback.onBondStateChange', codec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        channel.setMessageHandler(null);
+      } else {
+        channel.setMessageHandler((Object? message) async {
+          assert(message != null,
+          'Argument for dev.flutter.pigeon.ble_peripheral.BleCallback.onBondStateChange was null.');
+          final List<Object?> args = (message as List<Object?>?)!;
+          final BleCentral? arg_central = (args[0] as BleCentral?);
+          assert(arg_central != null,
+              'Argument for dev.flutter.pigeon.ble_peripheral.BleCallback.onBondStateChange was null, expected non-null BleCentral.');
+          final int? arg_bondState = (args[1] as int?);
+          assert(arg_bondState != null,
+              'Argument for dev.flutter.pigeon.ble_peripheral.BleCallback.onBondStateChange was null, expected non-null int.');
+          api.onBondStateChange(arg_central!, arg_bondState!);
           return;
         });
       }

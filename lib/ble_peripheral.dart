@@ -7,7 +7,9 @@ export 'package:ble_peripheral/src/ble_peripheral.g.dart';
 class BlePeripheral {
   final _channel = BlePeripheralChannel();
 
-  Future<void> initialize() => _channel.initialize();
+  Future initialize() async {
+    await _channel.initialize();
+  }
 
   Future<bool> isSupported() => _channel.isSupported();
 

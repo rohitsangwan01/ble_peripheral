@@ -148,3 +148,11 @@ fun Int.toPermission(): Int {
     }
 }
 
+fun Int.toBondState(): Long {
+    return when (this) {
+        BluetoothDevice.BOND_BONDING -> 0
+        BluetoothDevice.BOND_BONDED -> 1
+        BluetoothDevice.BOND_NONE -> 2
+        else -> 0
+    }
+}

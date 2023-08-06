@@ -126,7 +126,7 @@ abstract class BleCallback {
   void onServiceAdded(BleService service, String? error);
 
   // Android only
-  // void onConnectionStateChange(BleCentral central, bool connected);
+  void onConnectionStateChange(BleCentral central, bool connected);
 
-  // void onBondStateChange(bool bonded);
+  void onBondStateChange(BleCentral central, int bondState);
 }
