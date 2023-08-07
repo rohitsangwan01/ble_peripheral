@@ -32,3 +32,6 @@ flutter:
         sharedDarwinSource: true
       linux:
         pluginClass: BlePeripheralPlugin  
+      windows:
+        pluginClass: BlePeripheralPluginCApi
+  
