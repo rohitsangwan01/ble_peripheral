@@ -70,6 +70,10 @@
     "xstring": "cpp",
     "xtr1common": "cpp",
     "xtree": "cpp",
-    "xutility": "cpp"
+    "xutility": "cpp",
+    "array": "cpp",
+    "condition_variable": "cpp",
+    "coroutine": "cpp",
+    "shared_mutex": "cpp"
   }
 }

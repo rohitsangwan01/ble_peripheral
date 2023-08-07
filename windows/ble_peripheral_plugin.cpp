@@ -1,6 +1,14 @@
 #include "ble_peripheral_plugin.h"
 // This must be included before many other Windows headers.
 #include <windows.h>
+#include <winrt/Windows.Foundation.h>
+#include <winrt/Windows.Foundation.Collections.h>
+#include <winrt/Windows.Storage.Streams.h>
+#include <winrt/Windows.Devices.Radios.h>
+#include <winrt/Windows.Devices.Bluetooth.h>
+#include <winrt/Windows.Devices.Bluetooth.Advertisement.h>
+#include <winrt/Windows.Devices.Bluetooth.GenericAttributeProfile.h>
+#include <winrt/Windows.Devices.Enumeration.h>
 
 // For getPlatformVersion; remove unless needed for your plugin implementation.
 #include <VersionHelpers.h>
@@ -30,13 +38,46 @@ namespace ble_peripheral
     registrar->AddPlugin(std::move(plugin));
   }
 
-  BlePeripheralPlugin::BlePeripheralPlugin() {}
+  BlePeripheralPlugin::BlePeripheralPlugin()
+  {
+    InitializeAsync();
+  }
 
   BlePeripheralPlugin::~BlePeripheralPlugin() {}
 
+  winrt::fire_and_forget BlePeripheralPlugin::InitializeAsync()
+  {
+    auto bluetoothAdapter = co_await BluetoothAdapter::GetDefaultAsync();
+    bluetoothRadio = co_await bluetoothAdapter.GetRadioAsync();
+    bluetoothLEPublisher = BluetoothLEAdvertisementPublisher();
+    // status_changed_token = bluetoothLEPublisher.StatusChanged(
+    //     winrt::auto_revoke,
+    //     [this](BluetoothLEAdvertisementPublisher sender, BluetoothLEAdvertisementPublisherStatusChangedEventArgs args)
+    //     {
+    //       // Handle status changed event
+    //       // std::cout << args.Status() << std::endl;
+    //       std::cout << "Advertisement publisher status changed:" << std::endl;
+    //     });
+    // TO send event to flutter
+    // bleCallback->OnBleStateChange(
+    //     true,
+    //     [this]()
+    //     {
+    //       // on_success callback
+    //       std::cout << "Advertising started successfully" << std::endl;
+    //     },
+    //     [this](const FlutterError &error)
+    //     {
+    //       // on_error callback
+    //       std::cerr << "Error starting advertising: " << error.message() << std::endl;
+    //     });
+  }
+
   std::optional<FlutterError> BlePeripheralPlugin::Initialize()
   {
+    InitializeAsync();
     std::cout << "Initialize called" << std::endl;
+
     return std::nullopt;
   }
 
@@ -62,38 +103,24 @@ namespace ble_peripheral
       const flutter::EncodableList &services,
       const std::string &local_name)
   {
+
+    Advertisement::BluetoothLEManufacturerData manufacturerData = Advertisement::BluetoothLEManufacturerData();
+    manufacturerData.CompanyId(0xFFFE);
+    auto dataWriter = DataWriter();
+    dataWriter.WriteBytes("Test");
+    manufacturerData.Data(dataWriter.DetachBuffer());
+
+    bluetoothLEPublisher.Advertisement().ManufacturerData().Append(manufacturerData);
+    bluetoothLEPublisher.Start();
     std::cout << "StartAdvertising called" << std::endl;
-    // TO send event to flutter
-    bleCallback->OnBleStateChange(
-        true,
-        [this]()
-        {
-          // on_success callback
-          std::cout << "Advertising started successfully" << std::endl;
-        },
-        [this](const FlutterError &error)
-        {
-          // on_error callback
-          std::cerr << "Error starting advertising: " << error.message() << std::endl;
-        });
     return std::nullopt;
   }
 
   std::optional<FlutterError> BlePeripheralPlugin::StopAdvertising()
   {
     std::cout << "StopAdvertising called" << std::endl;
-    bleCallback->OnBleStateChange(
-        false,
-        [this]()
-        {
-          // on_success callback
-          std::cout << "Advertising started successfully" << std::endl;
-        },
-        [this](const FlutterError &error)
-        {
-          // on_error callback
-          std::cerr << "Error starting advertising: " << error.message() << std::endl;
-        });
+    bluetoothLEPublisher.Advertisement().ManufacturerData().Clear();
+    bluetoothLEPublisher.Stop();
     return std::nullopt;
   }
 
