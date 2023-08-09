@@ -22,7 +22,7 @@ Add the following permissions to your AndroidManifest.xml file:
 
 Add permission in info.plist
 
-```plist
+```
 <key>NSBluetoothAlwaysUsageDescription</key>
 <string>For advertise as ble mouse</string>
 ```
