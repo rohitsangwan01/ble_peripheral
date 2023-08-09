@@ -24,10 +24,10 @@ Add permission in info.plist
 
 ```
 <key>NSBluetoothAlwaysUsageDescription</key>
-<string>For advertise as ble mouse</string>
+<string>For advertise as ble peripheral</string>
 ```
 
-For macos, also enable bluetooth permission from xcode
+For MacOS, make sure to enable bluetooth from xcode
 
 ### Windows
 
@@ -45,7 +45,29 @@ await blePeripheral.initialize();
 Add services
 
 ```dart
-List<BleService> services = [];
+UUID serviceBattery = UUID(value: "0000180F-0000-1000-8000-00805F9B34FB");
+UUID characteristicBatteryLevel = UUID(value: "00002A19-0000-1000-8000-00805F9B34FB");
+
+BleService batteryService = BleService(
+      uuid: serviceBattery,
+      primary: true,
+      characteristics: [
+        BleCharacteristic(
+          uuid: characteristicBatteryLevel,
+          properties: [
+            CharacteristicProperties.read.index,
+            CharacteristicProperties.notify.index
+          ],
+          value: null,
+          descriptors: [],
+          permissions: [
+            AttributePermissions.readable.index
+          ],
+        ),
+      ],
+    );
+
+List<BleService> services = [batteryService];
 await blePeripheral.addServices(services);
 ```
 
