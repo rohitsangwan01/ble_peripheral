@@ -38,14 +38,11 @@ namespace ble_peripheral
     registrar->AddPlugin(std::move(plugin));
   }
 
-  BlePeripheralPlugin::BlePeripheralPlugin()
-  {
-    InitializeAsync();
-  }
+  BlePeripheralPlugin::BlePeripheralPlugin(){}
 
   BlePeripheralPlugin::~BlePeripheralPlugin() {}
 
-  winrt::fire_and_forget BlePeripheralPlugin::InitializeAsync()
+  winrt::fire_and_forget BlePeripheralPlugin::InitializeAdapter()
   {
     auto bluetoothAdapter = co_await BluetoothAdapter::GetDefaultAsync();
     bluetoothRadio = co_await bluetoothAdapter.GetRadioAsync();
@@ -75,7 +72,7 @@ namespace ble_peripheral
 
   std::optional<FlutterError> BlePeripheralPlugin::Initialize()
   {
-    InitializeAsync();
+    InitializeAdapter();
     std::cout << "Initialize called" << std::endl;
 
     return std::nullopt;

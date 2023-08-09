@@ -45,7 +45,7 @@ namespace ble_peripheral
         BlePeripheralPlugin &operator=(const BlePeripheralPlugin &) = delete;
 
         // BluetoothLe
-        winrt::fire_and_forget InitializeAsync();
+        winrt::fire_and_forget InitializeAdapter();
 
         Radio bluetoothRadio{nullptr};
 

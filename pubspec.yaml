@@ -1,7 +1,9 @@
 name: ble_peripheral
-description: A new Flutter plugin project.
+description: Ble peripheral is a Flutter plugin that allows you to use your device as Bluetooth Low Energy (BLE) peripheral
 version: 0.0.1
-homepage:
+homepage: https://github.com/rohitsangwan01/ble_peripheral
+repository: https://github.com/rohitsangwan01/ble_peripheral
+issue_tracker: https://github.com/rohitsangwan01/ble_peripheral/issues
 
 environment:
   sdk: '>=3.0.1 <4.0.0'
