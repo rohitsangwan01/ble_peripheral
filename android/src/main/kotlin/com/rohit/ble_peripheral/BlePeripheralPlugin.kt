@@ -173,7 +173,6 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
     private fun validatePermission(): Boolean {
         val permissionsList = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             arrayOf(
-                Manifest.permission.BLUETOOTH_ADMIN,
                 Manifest.permission.BLUETOOTH_SCAN,
                 Manifest.permission.BLUETOOTH_CONNECT,
                 Manifest.permission.BLUETOOTH_ADVERTISE,
@@ -192,29 +191,6 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
             requestCodeBluetoothPermission
         )
         return false
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-//            ActivityCompat.requestPermissions(
-//                activity,
-//                arrayOf(
-//                    Manifest.permission.BLUETOOTH_ADMIN,
-//                    Manifest.permission.BLUETOOTH,
-//                    Manifest.permission.BLUETOOTH_SCAN,
-//                    Manifest.permission.BLUETOOTH_CONNECT,
-//                    Manifest.permission.BLUETOOTH_ADVERTISE,
-//                ),
-//                requestCodeBluetoothPermission
-//            )
-//        } else {
-//            ActivityCompat.requestPermissions(
-//                activity,
-//                arrayOf(
-//                    Manifest.permission.BLUETOOTH_ADMIN,
-//                    Manifest.permission.BLUETOOTH,
-//                ),
-//                requestCodeBluetoothPermission
-//            )
-//        }
-//        return false
     }
 
 
