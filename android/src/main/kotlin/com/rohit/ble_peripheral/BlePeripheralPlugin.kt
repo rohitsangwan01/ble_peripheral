@@ -45,7 +45,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
     private val requestCodeBluetoothPermission = 0xa1c
     private lateinit var applicationContext: Context
     private lateinit var activity: Activity
-    private lateinit var handler: Handler
+    private var handler: Handler? = null
     private lateinit var bluetoothManager: BluetoothManager
     private var bluetoothLeAdvertiser: BluetoothLeAdvertiser? = null
     private var gattServer: BluetoothGattServer? = null
@@ -112,7 +112,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
         while (servicesToAdd.peek() != null) {
             Log.e(TAG, "Waiting for service to be added")
         }
-        handler.post { // set up advertising setting
+        handler?.post { // set up advertising setting
             bluetoothManager.adapter.name = localName
             val advertiseSettings = AdvertiseSettings.Builder()
                 .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
@@ -135,7 +135,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
     }
 
     override fun stopAdvertising() {
-        handler.post {
+        handler?.post {
             try {
                 bluetoothLeAdvertiser!!.stopAdvertising(advertiseCallback)
                 if (gattServer != null) {
@@ -160,7 +160,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
         val device = bluetoothDevicesMap[central.uuid.value] ?: throw Exception("Device not found")
         val char = characteristic.find() ?: throw Exception("Characteristic not found")
         //Log.e("Test", "updateCharacteristic: ${char.uuid} -> ${value.contentToString()}")
-        handler.post {
+        handler?.post {
             char.value = value
             gattServer?.notifyCharacteristicChanged(
                 device,
@@ -217,7 +217,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
             }
         }
         service?.let {
-            handler.post {
+            handler?.post {
                 bleCallback?.onServiceAdded(it.toBleService(), null) {}
             }
         }
@@ -226,7 +226,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
 
     private fun onConnectionUpdate(device: BluetoothDevice, status: Int, newState: Int) {
         Log.e(TAG, "onConnectionStateChange: $status -> $newState")
-        handler.post {
+        handler?.post {
             bleCallback?.onConnectionStateChange(
                 BleCentral(uuid = UUID(value = device.address)),
                 newState == BluetoothProfile.STATE_CONNECTED,
@@ -268,7 +268,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
                                         if (state == BluetoothDevice.BOND_BONDED) {
                                             // successfully bonded
                                             context.unregisterReceiver(this)
-                                            handler.post {
+                                            handler?.post {
                                                 gattServer?.connect(device, true)
                                             }
                                         }
@@ -283,7 +283,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
                             }
                             device.createBond()
                         } else if (device.bondState == BluetoothDevice.BOND_BONDED) {
-                            handler.post {
+                            handler?.post {
                                 if (gattServer != null) {
                                     Log.d(TAG, "Connecting to device: " + device.address)
                                     gattServer!!.connect(device, true)
@@ -303,7 +303,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
                         val deviceAddress = device.address
 
                         // try reconnect immediately
-                        handler.post {
+                        handler?.post {
                             if (gattServer != null) {
                                 // gattServer.cancelConnection(device);
                                 gattServer!!.connect(device, true)
@@ -325,19 +325,12 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
             ) {
                 super.onCharacteristicReadRequest(device, requestId, offset, characteristic)
                 if (gattServer == null) return
-                handler.post {
-//                    Log.e(
-//                        "Test", "onCharacteristicReadRequest requestId: "
-//                                + requestId + ", offset: "
-//                                + offset + ", characteristic: "
-//                                + characteristic.uuid
-//                    )
+                handler?.post {
                     bleCallback?.onReadRequest(
                         characteristicArg = characteristic.toBleCharacteristic(),
                         offsetArg = offset.toLong(),
                         valueArg = characteristic.value,
                     ) { it: ReadRequestResult? ->
-                        //Log.e("Test", "$requestId onCharacteristicReadRequest: $it")
                         if (it == null) {
                             gattServer!!.sendResponse(
                                 device,
@@ -407,7 +400,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
                 descriptor: BluetoothGattDescriptor
             ) {
                 super.onDescriptorReadRequest(device, requestId, offset, descriptor)
-                handler.post {
+                handler?.post {
                     val value: ByteArray? = descriptor.getCacheValue()
                     Log.e(
                         "Test",
@@ -498,7 +491,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
                     intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.ERROR)
                 val device: BluetoothDevice? =
                     intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
-                handler.post {
+                handler?.post {
                     bleCallback?.onBondStateChange(
                         BleCentral(uuid = UUID(value = device?.address ?: "")),
                         state.toBondState(),
