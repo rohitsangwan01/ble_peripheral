@@ -370,18 +370,20 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
                     offset,
                     value
                 )
-                bleCallback?.onWriteRequest(
-                    characteristicArg = characteristic.toBleCharacteristic(),
-                    offsetArg = offset.toLong(),
-                    valueArg = characteristic.value,
-                ) {
-                    gattServer!!.sendResponse(
-                        device,
-                        requestId,
-                        BluetoothGatt.GATT_SUCCESS,
-                        0,
-                        emptyBytes
-                    )
+                handler?.post {
+                    bleCallback?.onWriteRequest(
+                        characteristicArg = characteristic.toBleCharacteristic(),
+                        offsetArg = offset.toLong(),
+                        valueArg = characteristic.value,
+                    ) {
+                        gattServer!!.sendResponse(
+                            device,
+                            requestId,
+                            BluetoothGatt.GATT_SUCCESS,
+                            0,
+                            emptyBytes
+                        )
+                    }
                 }
             }
 
