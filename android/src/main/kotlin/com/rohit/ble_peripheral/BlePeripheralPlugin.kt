@@ -374,7 +374,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
                     bleCallback?.onWriteRequest(
                         characteristicArg = characteristic.toBleCharacteristic(),
                         offsetArg = offset.toLong(),
-                        valueArg = characteristic.value,
+                        valueArg = value,
                     ) {
                         gattServer!!.sendResponse(
                             device,
