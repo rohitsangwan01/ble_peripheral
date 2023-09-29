@@ -104,7 +104,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
         addService(services.last().toGattService())
     }
 
-    override fun startAdvertising(services: List<UUID>, localName: String) {
+    override fun startAdvertising(services: List<UUID>, localName: String, timeoutMillis: Long) {
         if (!isBluetoothEnabled()) {
             enableBluetooth()
             throw Exception("Bluetooth is not enabled")
@@ -117,7 +117,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
             val advertiseSettings = AdvertiseSettings.Builder()
                 .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
                 .setConnectable(true)
-                .setTimeout(0)
+                .setTimeout(timeoutMillis.toInt())
                 .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
                 .build()
             val advertiseDataBuilder = AdvertiseData.Builder()

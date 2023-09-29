@@ -85,6 +85,7 @@ abstract class BlePeripheralChannel {
   void startAdvertising(
     List<UUID> services,
     String localName,
+      int timeoutMillis,
   );
 
   void updateCharacteristic(

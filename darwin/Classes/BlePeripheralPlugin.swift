@@ -52,7 +52,7 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
         }
     }
 
-    func startAdvertising(services: [UUID], localName: String) throws {
+    func startAdvertising(services: [UUID], localName: String, timeoutMillis: Int64) throws {
         let cbServices = services.map { uuidString in
             CBUUID(string: uuidString.value)
         }
