@@ -31,18 +31,15 @@ import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.PluginRegistry
 import java.util.Collections
-import java.util.Queue
-import java.util.concurrent.LinkedBlockingQueue
 
-
-private val TAG = BlePeripheralPlugin::class.java.simpleName
+private const val TAG = "BlePeripheralPlugin"
 
 @SuppressLint("MissingPermission")
-class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
-    PluginRegistry.ActivityResultListener {
+class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
+    // PluginRegistry.ActivityResultListener {
+    private val requestCodeBluetoothPermission = 0xa1c
     var bleCallback: BleCallback? = null
     private val requestCodeBluetoothEnablePermission = 0xb1e
-    private val requestCodeBluetoothPermission = 0xa1c
     private lateinit var applicationContext: Context
     private lateinit var activity: Activity
     private lateinit var handler: Handler
@@ -50,8 +47,9 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
     private var bluetoothLeAdvertiser: BluetoothLeAdvertiser? = null
     private var gattServer: BluetoothGattServer? = null
     private val bluetoothDevicesMap: MutableMap<String, BluetoothDevice> = HashMap()
-    private val servicesToAdd: Queue<BluetoothGattService?> = LinkedBlockingQueue()
     private val emptyBytes = byteArrayOf()
+    private val listOfDevicesWaitingForBond = mutableListOf<String>()
+
     private val devices: Set<BluetoothDevice>
         get() {
             val deviceSet: MutableSet<BluetoothDevice> = HashSet()
@@ -68,7 +66,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
 
 
     override fun initialize() {
-        if (!validatePermission()) throw Exception("Bluetooth Permission not granted")
+        // if (!validatePermission()) throw Exception("Bluetooth Permission not granted")
         handler = Handler(applicationContext.mainLooper)
         bluetoothManager =
             applicationContext.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
@@ -81,9 +79,9 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
         bleCallback?.onBleStateChange(isBluetoothEnabled()) {}
     }
 
-    //TODO: Implement the following methods
-    override fun isAdvertising(): Boolean {
-        return true
+
+    override fun isAdvertising(): Boolean? {
+        return null
     }
 
     override fun isSupported(): Boolean {
@@ -95,40 +93,62 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
         return true
     }
 
-    override fun addServices(services: List<BleService>) {
-        // To make sure that we are safe from race condition
-        val totalServices = services.size - 1
-        for (i in 0..totalServices) {
-            servicesToAdd.add(services[i].toGattService())
-        }
-        addService(services.last().toGattService())
+    override fun addService(service: BleService) {
+        gattServer?.addService(service.toGattService())
     }
 
-    override fun startAdvertising(services: List<UUID>, localName: String) {
+    override fun startAdvertising(
+        services: List<String>,
+        localName: String,
+        timeout: Long?,
+        manufacturerData: ManufacturerData?,
+        addManufacturerDataInScanResponse: Boolean,
+    ) {
         if (!isBluetoothEnabled()) {
             enableBluetooth()
             throw Exception("Bluetooth is not enabled")
         }
-        while (servicesToAdd.peek() != null) {
-            Log.e(TAG, "Waiting for service to be added")
-        }
+
         handler.post { // set up advertising setting
             bluetoothManager.adapter.name = localName
             val advertiseSettings = AdvertiseSettings.Builder()
                 .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
                 .setConnectable(true)
-                .setTimeout(0)
+                .setTimeout(timeout?.toInt() ?: 0)
                 .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
                 .build()
+
             val advertiseDataBuilder = AdvertiseData.Builder()
                 .setIncludeTxPowerLevel(false)
                 .setIncludeDeviceName(true)
-            services.forEach {
-                advertiseDataBuilder.addServiceUuid(ParcelUuid.fromString(it.value))
+
+            val scanResponseBuilder = AdvertiseData.Builder()
+                .setIncludeTxPowerLevel(false)
+                .setIncludeDeviceName(true)
+
+            manufacturerData?.let {
+                if (addManufacturerDataInScanResponse) {
+                    scanResponseBuilder.addManufacturerData(
+                        it.manufacturerId.toInt(),
+                        it.data
+                    )
+                } else {
+                    advertiseDataBuilder.addManufacturerData(
+                        it.manufacturerId.toInt(),
+                        it.data
+                    )
+                }
+
             }
+
+            services.forEach {
+                advertiseDataBuilder.addServiceUuid(ParcelUuid.fromString(it))
+            }
+
             bluetoothLeAdvertiser?.startAdvertising(
                 advertiseSettings,
                 advertiseDataBuilder.build(),
+                scanResponseBuilder.build(),
                 advertiseCallback
             )
         }
@@ -137,7 +157,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
     override fun stopAdvertising() {
         handler.post {
             try {
-                bluetoothLeAdvertiser!!.stopAdvertising(advertiseCallback)
+                bluetoothLeAdvertiser?.stopAdvertising(advertiseCallback)
                 if (gattServer != null) {
                     val devices: Set<BluetoothDevice> = devices
                     for (device in devices) {
@@ -153,13 +173,13 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
     }
 
     override fun updateCharacteristic(
-        central: BleCentral,
-        characteristic: BleCharacteristic,
-        value: ByteArray
+        devoiceID: String,
+        characteristicId: String,
+        value: ByteArray,
     ) {
-        val device = bluetoothDevicesMap[central.uuid.value] ?: throw Exception("Device not found")
-        val char = characteristic.find() ?: throw Exception("Characteristic not found")
-        //Log.e("Test", "updateCharacteristic: ${char.uuid} -> ${value.contentToString()}")
+        val device = bluetoothDevicesMap[devoiceID] ?: throw Exception("Device not found")
+        val char =
+            characteristicId.findCharacteristic() ?: throw Exception("Characteristic not found")
         handler.post {
             char.value = value
             gattServer?.notifyCharacteristicChanged(
@@ -168,54 +188,6 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
                 true
             )
         }
-    }
-
-    private fun validatePermission(): Boolean {
-        val permissionsList = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            arrayOf(
-                Manifest.permission.BLUETOOTH_ADMIN,
-                Manifest.permission.BLUETOOTH,
-                Manifest.permission.BLUETOOTH_SCAN,
-                Manifest.permission.BLUETOOTH_CONNECT,
-                Manifest.permission.BLUETOOTH_ADVERTISE,
-            )
-        } else {
-            arrayOf(
-                Manifest.permission.BLUETOOTH_ADMIN,
-                Manifest.permission.BLUETOOTH,
-            )
-        }
-        val havePermission = activity.havePermission(permissionsList)
-        if (havePermission) return true
-        ActivityCompat.requestPermissions(
-            activity,
-            permissionsList,
-            requestCodeBluetoothPermission
-        )
-        return false
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-//            ActivityCompat.requestPermissions(
-//                activity,
-//                arrayOf(
-//                    Manifest.permission.BLUETOOTH_ADMIN,
-//                    Manifest.permission.BLUETOOTH,
-//                    Manifest.permission.BLUETOOTH_SCAN,
-//                    Manifest.permission.BLUETOOTH_CONNECT,
-//                    Manifest.permission.BLUETOOTH_ADVERTISE,
-//                ),
-//                requestCodeBluetoothPermission
-//            )
-//        } else {
-//            ActivityCompat.requestPermissions(
-//                activity,
-//                arrayOf(
-//                    Manifest.permission.BLUETOOTH_ADMIN,
-//                    Manifest.permission.BLUETOOTH,
-//                ),
-//                requestCodeBluetoothPermission
-//            )
-//        }
-//        return false
     }
 
 
@@ -231,29 +203,11 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
         )
     }
 
-    private fun addService(service: BluetoothGattService?) {
-        assert(gattServer != null)
-        var serviceAdded = false
-        while (!serviceAdded) {
-            try {
-                serviceAdded = gattServer!!.addService(service)
-            } catch (e: Exception) {
-                Log.d(TAG, "Adding Service failed", e)
-            }
-        }
-        service?.let {
-            handler.post {
-                bleCallback?.onServiceAdded(it.toBleService(), null) {}
-            }
-        }
-        Log.d(TAG, "Service: " + service!!.uuid + " added.")
-    }
-
     private fun onConnectionUpdate(device: BluetoothDevice, status: Int, newState: Int) {
         Log.e(TAG, "onConnectionStateChange: $status -> $newState")
         handler.post {
             bleCallback?.onConnectionStateChange(
-                BleCentral(uuid = UUID(value = device.address)),
+                device.address,
                 newState == BluetoothProfile.STATE_CONNECTED,
             ) {}
         }
@@ -262,57 +216,44 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
     private val advertiseCallback: AdvertiseCallback = object : AdvertiseCallback() {
         override fun onStartFailure(errorCode: Int) {
             super.onStartFailure(errorCode)
-            bleCallback?.onAdvertisingStarted("Failed to start advertising: $errorCode") {}
+            handler.post {
+                when (errorCode) {
+                    ADVERTISE_FAILED_ALREADY_STARTED -> bleCallback?.onAdvertisingStarted("Already started") {}
+                    ADVERTISE_FAILED_DATA_TOO_LARGE -> bleCallback?.onAdvertisingStarted("Data too large") {}
+                    ADVERTISE_FAILED_FEATURE_UNSUPPORTED -> bleCallback?.onAdvertisingStarted("Feature unsupported") {}
+                    ADVERTISE_FAILED_INTERNAL_ERROR -> bleCallback?.onAdvertisingStarted("Internal error") {}
+                    ADVERTISE_FAILED_TOO_MANY_ADVERTISERS -> bleCallback?.onAdvertisingStarted("Too many advertisers") {}
+                    else -> bleCallback?.onAdvertisingStarted("Failed to start advertising: $errorCode") {}
+                }
+            }
         }
 
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
             super.onStartSuccess(settingsInEffect)
-            bleCallback?.onAdvertisingStarted(null) {}
+            handler.post {
+                bleCallback?.onAdvertisingStarted(null) {}
+            }
         }
     }
+
 
     private val gattServerCallback: BluetoothGattServerCallback =
         object : BluetoothGattServerCallback() {
             override fun onConnectionStateChange(
                 device: BluetoothDevice,
                 status: Int,
-                newState: Int
+                newState: Int,
             ) {
                 super.onConnectionStateChange(device, status, newState)
                 when (newState) {
                     BluetoothProfile.STATE_CONNECTED -> {
                         if (device.bondState == BluetoothDevice.BOND_NONE) {
-                            applicationContext.registerReceiver(object : BroadcastReceiver() {
-                                override fun onReceive(context: Context, intent: Intent) {
-                                    val action = intent.action
-                                    if (BluetoothDevice.ACTION_BOND_STATE_CHANGED == action) {
-                                        val state = intent.getIntExtra(
-                                            BluetoothDevice.EXTRA_BOND_STATE,
-                                            BluetoothDevice.ERROR
-                                        )
-                                        if (state == BluetoothDevice.BOND_BONDED) {
-                                            // successfully bonded
-                                            context.unregisterReceiver(this)
-                                            handler.post {
-                                                gattServer?.connect(device, true)
-                                            }
-                                        }
-                                    }
-                                }
-                            }, IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED))
-                            // create bond
-                            try {
-                                device.setPairingConfirmation(true)
-                            } catch (e: SecurityException) {
-                                Log.d(TAG, e.message, e)
-                            }
+                            // Wait for bonding
+                            listOfDevicesWaitingForBond.add(device.address)
                             device.createBond()
                         } else if (device.bondState == BluetoothDevice.BOND_BONDED) {
                             handler.post {
-                                if (gattServer != null) {
-                                    Log.d(TAG, "Connecting to device: " + device.address)
-                                    gattServer!!.connect(device, true)
-                                }
+                                gattServer?.connect(device, true)
                             }
                             synchronized(bluetoothDevicesMap) {
                                 bluetoothDevicesMap.put(
@@ -326,14 +267,6 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
 
                     BluetoothProfile.STATE_DISCONNECTED -> {
                         val deviceAddress = device.address
-
-                        // try reconnect immediately
-                        handler.post {
-                            if (gattServer != null) {
-                                // gattServer.cancelConnection(device);
-                                gattServer!!.connect(device, true)
-                            }
-                        }
                         synchronized(bluetoothDevicesMap) { bluetoothDevicesMap.remove(deviceAddress) }
                         onConnectionUpdate(device, status, newState)
                     }
@@ -342,29 +275,32 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
                 }
             }
 
+            override fun onMtuChanged(device: BluetoothDevice?, mtu: Int) {
+                super.onMtuChanged(device, mtu)
+                device?.address?.let {
+                    handler.post {
+                        bleCallback?.onMtuChange(it, mtu.toLong()) {}
+                    }
+                }
+            }
+
             override fun onCharacteristicReadRequest(
                 device: BluetoothDevice,
                 requestId: Int,
                 offset: Int,
-                characteristic: BluetoothGattCharacteristic
+                characteristic: BluetoothGattCharacteristic,
             ) {
                 super.onCharacteristicReadRequest(device, requestId, offset, characteristic)
                 if (gattServer == null) return
                 handler.post {
-//                    Log.e(
-//                        "Test", "onCharacteristicReadRequest requestId: "
-//                                + requestId + ", offset: "
-//                                + offset + ", characteristic: "
-//                                + characteristic.uuid
-//                    )
                     bleCallback?.onReadRequest(
-                        characteristicArg = characteristic.toBleCharacteristic(),
+                        characteristicIdArg = characteristic.uuid.toString(),
                         offsetArg = offset.toLong(),
                         valueArg = characteristic.value,
-                    ) { it: ReadRequestResult? ->
-                        //Log.e("Test", "$requestId onCharacteristicReadRequest: $it")
-                        if (it == null) {
-                            gattServer!!.sendResponse(
+                    ) { it: Result<ReadRequestResult?> ->
+                        val readRequestResult: ReadRequestResult? = it.getOrNull()
+                        if (readRequestResult == null) {
+                            gattServer?.sendResponse(
                                 device,
                                 requestId,
                                 BluetoothGatt.GATT_FAILURE,
@@ -372,12 +308,12 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
                                 ByteArray(0)
                             )
                         } else {
-                            gattServer!!.sendResponse(
+                            gattServer?.sendResponse(
                                 device,
                                 requestId,
                                 BluetoothGatt.GATT_SUCCESS,
-                                it.offset?.toInt() ?: 0,
-                                it.value
+                                readRequestResult.offset?.toInt() ?: 0,
+                                readRequestResult.value
                             )
                         }
                     }
@@ -391,7 +327,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
                 preparedWrite: Boolean,
                 responseNeeded: Boolean,
                 offset: Int,
-                value: ByteArray
+                value: ByteArray,
             ) {
                 super.onCharacteristicWriteRequest(
                     device,
@@ -402,26 +338,31 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
                     offset,
                     value
                 )
-                bleCallback?.onWriteRequest(
-                    characteristicArg = characteristic.toBleCharacteristic(),
-                    offsetArg = offset.toLong(),
-                    valueArg = characteristic.value,
-                ) {
-                    gattServer!!.sendResponse(
-                        device,
-                        requestId,
-                        BluetoothGatt.GATT_SUCCESS,
-                        0,
-                        emptyBytes
-                    )
+                handler.post {
+                    bleCallback?.onWriteRequest(
+                        characteristicIdArg = characteristic.uuid.toString(),
+                        offsetArg = offset.toLong(),
+                        valueArg = characteristic.value,
+                    ) {
+                        gattServer?.sendResponse(
+                            device,
+                            requestId,
+                            BluetoothGatt.GATT_SUCCESS,
+                            0,
+                            emptyBytes
+                        )
+                    }
                 }
             }
 
             override fun onServiceAdded(status: Int, service: BluetoothGattService) {
                 super.onServiceAdded(status, service)
-                if (status != 0) Log.d(TAG, "onServiceAdded Adding Service failed..")
-                if (servicesToAdd.peek() != null) {
-                    addService(servicesToAdd.remove())
+                var error: String? = null
+                if (status != 0) {
+                    error = "Adding Service failed.."
+                }
+                handler.post {
+                    bleCallback?.onServiceAdded(service.uuid.toString(), error) {}
                 }
             }
 
@@ -429,20 +370,13 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
                 device: BluetoothDevice,
                 requestId: Int,
                 offset: Int,
-                descriptor: BluetoothGattDescriptor
+                descriptor: BluetoothGattDescriptor,
             ) {
                 super.onDescriptorReadRequest(device, requestId, offset, descriptor)
                 handler.post {
                     val value: ByteArray? = descriptor.getCacheValue()
-                    Log.e(
-                        "Test",
-                        "onDescriptorReadRequest requestId: "
-                                + requestId + ", offset: "
-                                + offset + ", descriptor: "
-                                + descriptor.uuid + ", Value: $value"
-                    )
                     if (value != null) {
-                        gattServer!!.sendResponse(
+                        gattServer?.sendResponse(
                             device,
                             requestId,
                             BluetoothGatt.GATT_SUCCESS,
@@ -450,7 +384,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
                             value
                         )
                     } else {
-                        gattServer!!.sendResponse(
+                        gattServer?.sendResponse(
                             device,
                             requestId,
                             BluetoothGatt.GATT_FAILURE,
@@ -468,7 +402,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
                 preparedWrite: Boolean,
                 responseNeeded: Boolean,
                 offset: Int,
-                value: ByteArray?
+                value: ByteArray?,
             ) {
                 super.onDescriptorWriteRequest(
                     device,
@@ -479,7 +413,13 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
                     offset,
                     value
                 )
-                Log.e(TAG, "onDescriptorWriteRequest, uuid: " + descriptor.uuid)
+                gattServer?.sendResponse(
+                    device,
+                    requestId,
+                    BluetoothGatt.GATT_SUCCESS,
+                    0,
+                    emptyBytes
+                )
             }
         }
 
@@ -509,11 +449,15 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
             if (action == BluetoothAdapter.ACTION_STATE_CHANGED) {
                 when (intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)) {
                     BluetoothAdapter.STATE_OFF -> {
-                        bleCallback?.onBleStateChange(false) {}
+                        handler.post {
+                            bleCallback?.onBleStateChange(false) {}
+                        }
                     }
 
                     BluetoothAdapter.STATE_ON -> {
-                        bleCallback?.onBleStateChange(true) {}
+                        handler.post {
+                            bleCallback?.onBleStateChange(true) {}
+                        }
                     }
 
                     else -> {}
@@ -523,24 +467,58 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware,
                     intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.ERROR)
                 val device: BluetoothDevice? =
                     intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+
                 handler.post {
                     bleCallback?.onBondStateChange(
-                        BleCentral(uuid = UUID(value = device?.address ?: "")),
+                        device?.address ?: "",
                         state.toBondState(),
                     ) {}
+                }
+
+                // if waiting for connection and device is bonded
+                val waitingForConnection = listOfDevicesWaitingForBond.contains(device?.address)
+                if (state == BluetoothDevice.BOND_BONDED && device != null && waitingForConnection) {
+                    listOfDevicesWaitingForBond.remove(device.address)
+                    handler.post {
+                        gattServer?.connect(device, true)
+                    }
                 }
             }
         }
     }
 
-
-    // TODO: start bluetooth on enable
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
-        if (requestCode == requestCodeBluetoothPermission) {
-            Log.d(TAG, "onActivityResultForBlePermission: ${resultCode == Activity.RESULT_OK}")
-        } else if (requestCode == requestCodeBluetoothEnablePermission) {
-            Log.d(TAG, "onActivityResultForBleEnable: ${resultCode == Activity.RESULT_OK}")
+    /// TODO: verify required permissions
+    override fun askBlePermission(): Boolean {
+        val permissionsList = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            arrayOf(
+                Manifest.permission.BLUETOOTH_ADMIN,
+                Manifest.permission.BLUETOOTH,
+                Manifest.permission.BLUETOOTH_SCAN,
+                Manifest.permission.BLUETOOTH_CONNECT,
+                Manifest.permission.BLUETOOTH_ADVERTISE,
+            )
+        } else {
+            arrayOf(
+                Manifest.permission.BLUETOOTH_ADMIN,
+                Manifest.permission.BLUETOOTH,
+            )
         }
+        val havePermission = activity.havePermission(permissionsList)
+        if (havePermission) return true
+        ActivityCompat.requestPermissions(
+            activity,
+            permissionsList,
+            requestCodeBluetoothPermission
+        )
         return false
     }
+
+//    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
+//        if (requestCode == requestCodeBluetoothPermission) {
+//            Log.d(TAG, "onActivityResultForBlePermission: ${resultCode == Activity.RESULT_OK}")
+//        } else if (requestCode == requestCodeBluetoothEnablePermission) {
+//            Log.d(TAG, "onActivityResultForBleEnable: ${resultCode == Activity.RESULT_OK}")
+//        }
+//        return false
+//    }
 }

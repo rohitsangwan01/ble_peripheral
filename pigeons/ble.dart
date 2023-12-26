@@ -4,7 +4,7 @@ import 'package:pigeon/pigeon.dart';
 @ConfigurePigeon(
   PigeonOptions(
     dartPackageName: 'ble_peripheral',
-    dartOut: 'lib/src/ble_peripheral.g.dart',
+    dartOut: 'lib/src/generated/ble_peripheral.g.dart',
     dartOptions: DartOptions(),
     kotlinOut:
         'android/src/main/kotlin/com/rohit/ble_peripheral/BlePeripheral.g.kt',
@@ -18,49 +18,28 @@ import 'package:pigeon/pigeon.dart';
 )
 
 /// Models
-class UUID {
-  String value;
-  UUID(this.value);
-}
-
-class BleDescriptor {
-  UUID uuid;
-  Uint8List? value;
-  List<int?>? permissions;
-  BleDescriptor(this.uuid, this.value, this.permissions);
+class BleService {
+  String uuid;
+  bool primary;
+  List<BleCharacteristic?> characteristics;
+  BleService(this.uuid, this.primary, this.characteristics);
 }
 
 class BleCharacteristic {
-  UUID uuid;
+  String uuid;
   List<int?> properties;
   List<int?> permissions;
   List<BleDescriptor?>? descriptors;
   Uint8List? value;
-
-  BleCharacteristic(
-    this.uuid,
-    this.value,
-    this.descriptors,
-    this.properties,
-    this.permissions,
-  );
+  BleCharacteristic(this.uuid, this.value, this.descriptors, this.properties,
+      this.permissions);
 }
 
-class BleService {
-  UUID uuid;
-  bool primary;
-
-  List<BleCharacteristic?> characteristics;
-  BleService(
-    this.uuid,
-    this.primary,
-    this.characteristics,
-  );
-}
-
-class BleCentral {
-  UUID uuid;
-  BleCentral(this.uuid);
+class BleDescriptor {
+  String uuid;
+  Uint8List? value;
+  List<int?>? permissions;
+  BleDescriptor(this.uuid, this.value, this.permissions);
 }
 
 class ReadRequestResult {
@@ -69,27 +48,38 @@ class ReadRequestResult {
   ReadRequestResult({required this.value, this.offset});
 }
 
+class ManufacturerData {
+  int manufacturerId;
+  Uint8List data;
+  ManufacturerData({required this.manufacturerId, required this.data});
+}
+
 /// Flutter -> Native
 @HostApi()
 abstract class BlePeripheralChannel {
   void initialize();
 
-  bool isAdvertising();
+  bool? isAdvertising();
 
   bool isSupported();
 
   void stopAdvertising();
 
-  void addServices(List<BleService> services);
+  bool askBlePermission();
+
+  void addService(BleService service);
 
   void startAdvertising(
-    List<UUID> services,
+    List<String> services,
     String localName,
+    int? timeout,
+    ManufacturerData? manufacturerData,
+    bool addManufacturerDataInScanResponse,
   );
 
   void updateCharacteristic(
-    BleCentral central,
-    BleCharacteristic characteristic,
+    String devoiceID,
+    String characteristicId,
     Uint8List value,
   );
 }
@@ -98,35 +88,33 @@ abstract class BlePeripheralChannel {
 @FlutterApi()
 abstract class BleCallback {
   ReadRequestResult? onReadRequest(
-    BleCharacteristic characteristic,
+    String characteristicId,
     int offset,
     Uint8List? value,
   );
 
   void onWriteRequest(
-    BleCharacteristic characteristic,
+    String characteristicId,
     int offset,
     Uint8List? value,
   );
 
   void onCharacteristicSubscriptionChange(
-    BleCentral central,
-    BleCharacteristic characteristic,
+    String deviceId,
+    String characteristicId,
     bool isSubscribed,
   );
-
-  void onSubscribe(BleCentral bleCentral, BleCharacteristic characteristic);
-
-  void onUnsubscribe(BleCentral bleCentral, BleCharacteristic characteristic);
 
   void onAdvertisingStarted(String? error);
 
   void onBleStateChange(bool state);
 
-  void onServiceAdded(BleService service, String? error);
+  void onServiceAdded(String serviceId, String? error);
 
   // Android only
-  void onConnectionStateChange(BleCentral central, bool connected);
+  void onConnectionStateChange(String deviceId, bool connected);
 
-  void onBondStateChange(BleCentral central, int bondState);
+  void onBondStateChange(String deviceId, int bondState);
+
+  void onMtuChange(String deviceId, int mtu);
 }
