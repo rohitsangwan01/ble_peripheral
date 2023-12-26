@@ -10,9 +10,6 @@
 #include <winrt/Windows.Devices.Bluetooth.GenericAttributeProfile.h>
 #include <winrt/Windows.Devices.Enumeration.h>
 
-// For getPlatformVersion; remove unless needed for your plugin implementation.
-#include <VersionHelpers.h>
-
 #include <flutter/method_channel.h>
 #include <flutter/plugin_registrar_windows.h>
 #include <flutter/standard_method_codec.h>
@@ -26,7 +23,6 @@ namespace ble_peripheral
   using ble_peripheral::BleCallback;
   using ble_peripheral::BlePeripheralChannel;
   using ble_peripheral::ErrorOr;
-
   std::unique_ptr<BleCallback> bleCallback;
 
   // static
@@ -38,7 +34,7 @@ namespace ble_peripheral
     registrar->AddPlugin(std::move(plugin));
   }
 
-  BlePeripheralPlugin::BlePeripheralPlugin(){}
+  BlePeripheralPlugin::BlePeripheralPlugin() {}
 
   BlePeripheralPlugin::~BlePeripheralPlugin() {}
 
@@ -47,27 +43,6 @@ namespace ble_peripheral
     auto bluetoothAdapter = co_await BluetoothAdapter::GetDefaultAsync();
     bluetoothRadio = co_await bluetoothAdapter.GetRadioAsync();
     bluetoothLEPublisher = BluetoothLEAdvertisementPublisher();
-    // status_changed_token = bluetoothLEPublisher.StatusChanged(
-    //     winrt::auto_revoke,
-    //     [this](BluetoothLEAdvertisementPublisher sender, BluetoothLEAdvertisementPublisherStatusChangedEventArgs args)
-    //     {
-    //       // Handle status changed event
-    //       // std::cout << args.Status() << std::endl;
-    //       std::cout << "Advertisement publisher status changed:" << std::endl;
-    //     });
-    // TO send event to flutter
-    // bleCallback->OnBleStateChange(
-    //     true,
-    //     [this]()
-    //     {
-    //       // on_success callback
-    //       std::cout << "Advertising started successfully" << std::endl;
-    //     },
-    //     [this](const FlutterError &error)
-    //     {
-    //       // on_error callback
-    //       std::cerr << "Error starting advertising: " << error.message() << std::endl;
-    //     });
   }
 
   std::optional<FlutterError> BlePeripheralPlugin::Initialize()
@@ -78,10 +53,10 @@ namespace ble_peripheral
     return std::nullopt;
   }
 
-  ErrorOr<bool> BlePeripheralPlugin::IsAdvertising()
+  ErrorOr<std::optional<bool>> BlePeripheralPlugin::IsAdvertising()
   {
     std::cout << "IsAdvertising called" << std::endl;
-    return true;
+    return ErrorOr<std::optional<bool>>(std::nullopt);
   }
 
   ErrorOr<bool> BlePeripheralPlugin::IsSupported()
@@ -90,17 +65,25 @@ namespace ble_peripheral
     return true;
   }
 
-  std::optional<FlutterError> BlePeripheralPlugin::AddServices(const flutter::EncodableList &services)
+  ErrorOr<bool> BlePeripheralPlugin::AskBlePermission()
   {
-    std::cout << "AddServices called" << std::endl;
+    std::cout << "AskBlePermission called" << std::endl;
+    return true;
+  };
+
+  std::optional<FlutterError> BlePeripheralPlugin::AddService(const BleService &service)
+  {
+    std::cout << "AddService called" << std::endl;
     return std::nullopt;
-  }
+  };
 
   std::optional<FlutterError> BlePeripheralPlugin::StartAdvertising(
       const flutter::EncodableList &services,
-      const std::string &local_name)
+      const std::string &local_name,
+      const int64_t *timeout,
+      const ManufacturerData *manufacturer_data,
+      bool add_manufacturer_data_in_scan_response)
   {
-
     Advertisement::BluetoothLEManufacturerData manufacturerData = Advertisement::BluetoothLEManufacturerData();
     manufacturerData.CompanyId(0xFFFE);
     auto dataWriter = DataWriter();
@@ -122,8 +105,8 @@ namespace ble_peripheral
   }
 
   std::optional<FlutterError> BlePeripheralPlugin::UpdateCharacteristic(
-      const BleCentral &central,
-      const BleCharacteristic &characteristic,
+      const std::string &devoice_i_d,
+      const std::string &characteristic_id,
       const std::vector<uint8_t> &value)
   {
     std::cout << "UpdateCharacteristic called" << std::endl;

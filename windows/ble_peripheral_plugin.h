@@ -38,7 +38,7 @@ namespace ble_peripheral
 
         BlePeripheralPlugin();
 
-        virtual ~BlePeripheralPlugin();
+        ~BlePeripheralPlugin();
 
         // Disallow copy and assign.
         BlePeripheralPlugin(const BlePeripheralPlugin &) = delete;
@@ -53,24 +53,21 @@ namespace ble_peripheral
         winrt::event_token status_changed_token;
 
         // BlePeripheralChannel
-
         std::optional<FlutterError> Initialize() override;
-
-        ErrorOr<bool> IsAdvertising() override;
-
+        ErrorOr<std::optional<bool>> IsAdvertising() override;
         ErrorOr<bool> IsSupported() override;
-
-        std::optional<FlutterError> StopAdvertising() override;
-
-        std::optional<FlutterError> AddServices(const flutter::EncodableList &services) override;
-
+        ErrorOr<bool> AskBlePermission() override;
+        std::optional<FlutterError> AddService(const BleService &service) override;
         std::optional<FlutterError> StartAdvertising(
             const flutter::EncodableList &services,
-            const std::string &local_name) override;
-
+            const std::string &local_name,
+            const int64_t *timeout,
+            const ManufacturerData *manufacturer_data,
+            bool add_manufacturer_data_in_scan_response) override;
+        std::optional<FlutterError> StopAdvertising() override;
         std::optional<FlutterError> UpdateCharacteristic(
-            const BleCentral &central,
-            const BleCharacteristic &characteristic,
+            const std::string &devoice_i_d,
+            const std::string &characteristic_id,
             const std::vector<uint8_t> &value) override;
     };
 
