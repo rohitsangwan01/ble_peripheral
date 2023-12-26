@@ -4,8 +4,8 @@
     import Cocoa
     import FlutterMacOS
 #endif
-import Foundation
 import CoreBluetooth
+import Foundation
 
 public class BlePeripheralPlugin: NSObject, FlutterPlugin {
     public static func register(with registrar: FlutterPluginRegistrar) {
@@ -42,24 +42,46 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
         return true
     }
 
-    func isAdvertising() throws -> Bool {
+    func isAdvertising() throws -> Bool? {
         return peripheralManager.isAdvertising
     }
 
-    func addServices(services: [BleService]) throws {
-        services.forEach { service in
-            self.peripheralManager.add(service.toCBService())
-        }
+    func askBlePermission() throws -> Bool {
+        #if os(iOS)
+            if #available(iOS 13.1, *) { return CBPeripheralManager.authorization == .allowedAlways }
+            if #available(iOS 13.0, *) { return CBPeripheralManager.authorizationStatus() == .authorized }
+            return true
+        #elseif os(macOS)
+            //  Handle for macos
+            return true
+        #endif
     }
 
-    func startAdvertising(services: [UUID], localName: String) throws {
+    func addService(service: BleService) throws {
+        peripheralManager.add(service.toCBService())
+    }
+
+    func startAdvertising(services: [String], localName: String, timeout _: Int64?, manufacturerData: ManufacturerData?, addManufacturerDataInScanResponse _: Bool) throws {
         let cbServices = services.map { uuidString in
-            CBUUID(string: uuidString.value)
+            CBUUID(string: uuidString)
         }
-        peripheralManager.startAdvertising([
+
+        var advertisementData: [String: Any] = [
             CBAdvertisementDataServiceUUIDsKey: cbServices,
             CBAdvertisementDataLocalNameKey: localName,
-        ])
+        ]
+
+        if let manufacturerData = manufacturerData {
+            var manufData = Data()
+            manufData.append(contentsOf: withUnsafeBytes(of: manufacturerData.manufacturerId) { Data($0) })
+            manufData.append(manufacturerData.data.data)
+            advertisementData[CBAdvertisementDataManufacturerDataKey] = manufData
+        }
+
+        print("AdvertisementData: \(advertisementData)")
+        
+
+        peripheralManager.startAdvertising(advertisementData)
     }
 
     func stopAdvertising() throws {
@@ -71,15 +93,15 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
         if !containsDevice { cbCentrals.append(central) }
     }
 
-    func updateCharacteristic(central: BleCentral, characteristic: BleCharacteristic, value: FlutterStandardTypedData) throws {
+    func updateCharacteristic(devoiceID: String, characteristicId: String, value: FlutterStandardTypedData) throws {
         let centralDevice: CBCentral? = cbCentrals.first(where: { device in
-            central.uuid.value == device.identifier.uuidString
+            devoiceID == device.identifier.uuidString
         })
-        let char: CBMutableCharacteristic? = characteristic.find()
+        let char: CBMutableCharacteristic? = characteristicId.findCharacteristic()
         if centralDevice == nil {
-            throw CustomError.notFound("\(central.uuid.value) device not found")
+            throw CustomError.notFound("\(devoiceID) device not found")
         } else if char == nil {
-            throw CustomError.notFound("\(characteristic.uuid.value) characteristic not found")
+            throw CustomError.notFound("\(devoiceID) characteristic not found")
         } else {
             peripheralManager.updateValue(value.toData(), for: char!, onSubscribedCentrals: [centralDevice!])
         }
@@ -92,39 +114,44 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
 
     /// Swift callbacks
     internal nonisolated func peripheralManagerDidStartAdvertising(_: CBPeripheralManager, error: Error?) {
-        bleCallback.onAdvertisingStarted(error: error?.localizedDescription, completion: {})
+        bleCallback.onAdvertisingStarted(error: error?.localizedDescription, completion: { _ in })
     }
 
     nonisolated func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
         print("BluetoothState: \(peripheral.state)")
-        bleCallback.onBleStateChange(state: peripheral.state == .poweredOn, completion: {})
+        bleCallback.onBleStateChange(state: peripheral.state == .poweredOn, completion: { _ in })
     }
 
     internal nonisolated func peripheralManager(_: CBPeripheralManager, didAdd service: CBService, error: Error?) {
-        bleCallback.onServiceAdded(service: service.toBleService(), error: error?.localizedDescription, completion: {})
+        bleCallback.onServiceAdded(serviceId: service.uuid.uuidString, error: error?.localizedDescription, completion: { _ in })
     }
 
     internal nonisolated func peripheralManager(_: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
         updateCentralList(central: central)
-        bleCallback.onSubscribe(bleCentral: central.toBleCenral(), characteristic: characteristic.toBleCharacteristic()) {}
+        bleCallback.onCharacteristicSubscriptionChange(deviceId: central.identifier.uuidString, characteristicId: characteristic.uuid.uuidString, isSubscribed: true) { _ in }
     }
 
     internal nonisolated func peripheralManager(_: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
-        bleCallback.onUnsubscribe(bleCentral: central.toBleCenral(), characteristic: characteristic.toBleCharacteristic()) {}
+        bleCallback.onCharacteristicSubscriptionChange(deviceId: central.identifier.uuidString, characteristicId: characteristic.uuid.uuidString, isSubscribed: false) { _ in }
     }
 
     internal nonisolated func peripheralManager(_: CBPeripheralManager, didReceiveRead request: CBATTRequest) {
         bleCallback.onReadRequest(
-            characteristic: request.characteristic.toBleCharacteristic(),
+            characteristicId: request.characteristic.uuid.uuidString,
             offset: Int64(request.offset),
             value: request.value?.toFlutterBytes()
         ) { readReq in
-            let data = readReq?.value.toData()
-            if data == nil {
+            do {
+                let result = try readReq.get()
+                let data = result?.value.toData()
+                if data == nil {
+                    self.peripheralManager.respond(to: request, withResult: .requestNotSupported)
+                } else {
+                    request.value = data
+                    self.peripheralManager.respond(to: request, withResult: .success)
+                }
+            } catch {
                 self.peripheralManager.respond(to: request, withResult: .requestNotSupported)
-            } else {
-                request.value = data!
-                self.peripheralManager.respond(to: request, withResult: .success)
             }
         }
     }
@@ -132,11 +159,17 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
     internal nonisolated func peripheralManager(_: CBPeripheralManager, didReceiveWrite request: [CBATTRequest]) {
         request.forEach { req in
             bleCallback.onWriteRequest(
-                characteristic: req.characteristic.toBleCharacteristic(),
+                characteristicId: req.characteristic.uuid.uuidString,
                 offset: Int64(req.offset),
                 value: req.value?.toFlutterBytes()
-            ) {}
+            ) { writeResult in
+                do {
+                    try writeResult.get()
+                    self.peripheralManager.respond(to: req, withResult: .success)
+                } catch {
+                    self.peripheralManager.respond(to: req, withResult: .requestNotSupported)
+                }
+            }
         }
     }
 }
-

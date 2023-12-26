@@ -22,22 +22,10 @@ enum CustomError: Error {
 /// local list of characteristic
 var characteristicsList = [CBMutableCharacteristic]()
 
-extension CBService {
-    func toBleService() -> BleService {
-        return BleService(
-            uuid: uuid.toUUID(),
-            primary: isPrimary,
-            characteristics: characteristics?.map { char in
-                char.toBleCharacteristic()
-            } ?? []
-        )
-    }
-}
-
 extension BleService {
     func toCBService() -> CBMutableService {
         let service = CBMutableService(
-            type: CBUUID(string: uuid.value),
+            type: CBUUID(string: uuid),
             primary: primary
         )
         let chars = characteristics.compactMap { bleChar in
@@ -52,18 +40,9 @@ extension BleService {
 
 extension BleDescriptor {
     func toCBMutableDescriptor() -> CBMutableDescriptor {
-        return CBMutableDescriptor(type: CBUUID(string: uuid.value), value: value?.toData())
-    }
-}
-
-extension CBCharacteristic {
-    func toBleCharacteristic() -> BleCharacteristic {
-        return BleCharacteristic(
-            uuid: uuid.toUUID(),
-            properties: [Int64(properties.rawValue)],
-            permissions: [],
-            descriptors: nil,
-            value: value?.toFlutterBytes()
+        return CBMutableDescriptor(
+            type: CBUUID(string: uuid),
+            value: value?.toData()
         )
     }
 }
@@ -81,7 +60,7 @@ extension BleCharacteristic {
         let combinedPermissions = permissions.reduce(CBAttributePermissions()) { $0.union($1) }
 
         let char = CBMutableCharacteristic(
-            type: CBUUID(string: uuid.value),
+            type: CBUUID(string: uuid),
             properties: combinedProperties,
             value: value?.toData(),
             permissions: combinedPermissions
@@ -89,15 +68,17 @@ extension BleCharacteristic {
         char.descriptors = descriptors?.compactMap { desc in
             desc?.toCBMutableDescriptor()
         }
-        // Add local refrence of this characteristic
-        let containsChar = characteristicsList.contains { $0.uuid.uuidString == char.uuid.uuidString }
-        if !containsChar { characteristicsList.append(char) }
+        // Add local reference of this characteristic
+        characteristicsList.removeAll { $0.uuid.uuidString.lowercased() == char.uuid.uuidString.lowercased() }
+        characteristicsList.append(char)
         return char
     }
+}
 
-    func find() -> CBMutableCharacteristic? {
+extension String {
+    func findCharacteristic() -> CBMutableCharacteristic? {
         return characteristicsList.first { ch in
-            ch.uuid.uuidString == self.uuid.value
+            ch.uuid.uuidString == self
         }
     }
 }
@@ -138,18 +119,6 @@ extension Int64 {
     }
 }
 
-extension CBCentral {
-    func toBleCenral() -> BleCentral {
-        return BleCentral(uuid: UUID(value: identifier.uuidString))
-    }
-}
-
-extension CBUUID {
-    func toUUID() -> UUID {
-        return UUID(value: uuidString)
-    }
-}
-
 extension FlutterStandardTypedData {
     func toData() -> Data {
         return Data(data)
@@ -174,3 +143,26 @@ extension [Int64?] {
         return Data(bytes: finalArray, count: finalArray.count)
     }
 }
+
+// extension CBCharacteristic {
+//    func toBleCharacteristic() -> BleCharacteristic {
+//        return BleCharacteristic(
+//            uuid: uuid.toUUID(),
+//            properties: [Int64(properties.rawValue)],
+//            permissions: [],
+//            descriptors: nil,
+//            value: value?.toFlutterBytes()
+//        )
+//    }
+// }
+// extension CBService {
+//    func toBleService() -> BleService {
+//        return BleService(
+//            uuid: uuid.toUUID(),
+//            primary: isPrimary,
+//            characteristics: characteristics?.map { char in
+//                char.toBleCharacteristic()
+//            } ?? []
+//        )
+//    }
+// }

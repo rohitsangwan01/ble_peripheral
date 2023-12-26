@@ -1,9 +1,11 @@
+import 'package:ble_peripheral/ble_peripheral.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'home_controller.dart';
 
 class HomeView extends GetView<HomeController> {
   const HomeView({Key? key}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -29,25 +31,52 @@ class HomeView extends GetView<HomeController> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
+                  const ElevatedButton(
+                    onPressed: BlePeripheral.askBlePermission,
+                    child: Text('Ask Permission'),
+                  ),
                   ElevatedButton(
-                    onPressed: controller.start,
+                    onPressed: controller.addServices,
+                    child: const Text('Add Services'),
+                  ),
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  ElevatedButton(
+                    onPressed: controller.startAdvertising,
                     child: const Text('Start Advertising'),
                   ),
                   ElevatedButton(
-                    onPressed: controller.stop,
+                    onPressed: () async {
+                      await BlePeripheral.stopAdvertising();
+                      controller.isAdvertising.value = false;
+                    },
                     child: const Text('Stop Advertising'),
                   ),
                 ],
               ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  ElevatedButton(
+                    onPressed: () async {
+                      controller.updateCharacteristic();
+                    },
+                    child: const Text('Update Characteristic value'),
+                  ),
+                ],
+              ),
               const Divider(),
-              const Text("Devices"),
+              const Center(child: Text("Devices")),
               Expanded(
                 child: Obx(() => ListView.builder(
                       itemCount: controller.devices.length,
                       itemBuilder: (BuildContext context, int index) {
                         return Card(
                           child: ListTile(
-                            title: Text(controller.devices[index].uuid.value),
+                            title: Text(controller.devices[index]),
                           ),
                         );
                       },

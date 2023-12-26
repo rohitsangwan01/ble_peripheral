@@ -9,32 +9,13 @@ import android.content.pm.PackageManager
 import android.util.Log
 import java.lang.Exception
 import java.util.Collections
+import java.util.UUID
 
 private val bluetoothGattCharacteristics: MutableMap<String, BluetoothGattCharacteristic> =
     HashMap()
 private val descriptorValueReadMap: MutableMap<String, ByteArray> =
     HashMap()
 
-/// From Native -> Flutter
-
-fun BluetoothGattCharacteristic.toBleCharacteristic(): BleCharacteristic {
-    val property = mutableListOf<Long>()
-    val permission = mutableListOf<Long>()
-    return BleCharacteristic(
-        uuid = UUID(value = uuid.toString()),
-        properties = property,
-        permissions = permission,
-        value = value
-    )
-}
-
-fun BluetoothGattService.toBleService(): BleService {
-    return BleService(
-        uuid = UUID(value = uuid.toString()),
-        primary = type == BluetoothGattService.SERVICE_TYPE_PRIMARY,
-        characteristics = characteristics.map { it.toBleCharacteristic() },
-    )
-}
 
 fun Activity.havePermission(permissions: Array<String>): Boolean {
     var allPermissionProvided = true
@@ -50,13 +31,9 @@ fun Activity.havePermission(permissions: Array<String>): Boolean {
 
 
 /// From Flutter -> Native
-fun UUID.toNative(): java.util.UUID {
-    return java.util.UUID.fromString(value)
-}
-
 fun BleService.toGattService(): BluetoothGattService {
     val service = BluetoothGattService(
-        uuid.toNative(),
+        UUID.fromString(uuid),
         if (primary) BluetoothGattService.SERVICE_TYPE_PRIMARY else BluetoothGattService.SERVICE_TYPE_SECONDARY
     )
     characteristics.forEach {
@@ -69,7 +46,7 @@ fun BleService.toGattService(): BluetoothGattService {
 
 fun BleCharacteristic.toGattCharacteristic(): BluetoothGattCharacteristic {
     val char = BluetoothGattCharacteristic(
-        uuid.toNative(),
+        UUID.fromString(uuid),
         properties.toPropertiesList(),
         permissions.toPermissionsList()
     )
@@ -78,8 +55,8 @@ fun BleCharacteristic.toGattCharacteristic(): BluetoothGattCharacteristic {
             char.addDescriptor(descriptor)
         }
     }
-    if (bluetoothGattCharacteristics[uuid.value] == null) {
-        bluetoothGattCharacteristics[uuid.value] = char
+    if (bluetoothGattCharacteristics[uuid] == null) {
+        bluetoothGattCharacteristics[uuid] = char
     }
     return char
 }
@@ -93,17 +70,17 @@ fun BleDescriptor.toGattDescriptor(): BluetoothGattDescriptor {
         BluetoothGattDescriptor.PERMISSION_READ or BluetoothGattDescriptor.PERMISSION_WRITE
     val permission = permissions?.toPermissionsList() ?: defaultPermission
     val descriptor = BluetoothGattDescriptor(
-        uuid.toNative(),
+        UUID.fromString(uuid),
         permission
     )
     value?.let {
-        descriptorValueReadMap[uuid.value.lowercase()] = it
+        descriptorValueReadMap[uuid.lowercase()] = it
     }
     return descriptor
 }
 
-fun BleCharacteristic.find(): BluetoothGattCharacteristic? {
-    return bluetoothGattCharacteristics[uuid.value]
+fun String.findCharacteristic(): BluetoothGattCharacteristic? {
+    return bluetoothGattCharacteristics[this]
 }
 
 fun List<Long?>.toPropertiesList(): Int {
@@ -156,3 +133,23 @@ fun Int.toBondState(): Long {
         else -> 0
     }
 }
+
+/// From Native -> Flutter
+//fun BluetoothGattCharacteristic.toBleCharacteristic(): BleCharacteristic {
+//    val property = mutableListOf<Long>()
+//    val permission = mutableListOf<Long>()
+//    return BleCharacteristic(
+//        uuid = uuid.toString(),
+//        properties = property,
+//        permissions = permission,
+//        value = value
+//    )
+//}
+//
+//fun BluetoothGattService.toBleService(): BleService {
+//    return BleService(
+//        uuid = uuid.toString(),
+//        primary = type == BluetoothGattService.SERVICE_TYPE_PRIMARY,
+//        characteristics = characteristics.map { it.toBleCharacteristic() },
+//    )
+//}

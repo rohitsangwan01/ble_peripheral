@@ -1,8 +1,9 @@
 name: ble_peripheral_example
 publish_to: none
 description: Demonstrates how to use the ble_peripheral plugin.
+version: 1.0.0+1
 environment: 
-  sdk: '>=3.0.1 <4.0.0'
+  sdk: '>=3.2.0 <4.0.0'
 
 dependencies: 
   flutter: 
