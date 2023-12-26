@@ -4,18 +4,17 @@ import 'dart:typed_data';
 import 'package:ble_peripheral/ble_peripheral.dart';
 
 class BleCallbackHandler extends BleCallback {
-  Function(String? error)? advertingStarted;
-  Function(bool state)? bleStateChange;
-  Function(String deviceId, int bondState)? bondStateChange;
-  Function(String deviceId, String characteristicId, bool isSubscribed)?
-      characteristicSubscriptionChange;
-  Function(String deviceId, bool connected)? connectionStateChange;
-  ReadRequestResult? Function(
-      String characteristicId, int offset, Uint8List? value)? readRequest;
-  Function(String serviceId, String? error)? serviceAdded;
-
-  Function(String characteristicId, int offset, Uint8List? value)? writeRequest;
+  AdvertisementCallback? advertingStarted;
+  BleStateCallback? bleStateChange;
+  BondStateCallback? bondStateChange;
+  CharacteristicSubscriptionChangeCallback? characteristicSubscriptionChange;
+  ConnectionStateChangeCallback? connectionStateChange;
+  ReadRequestCallback? readRequest;
+  ServiceAddedCallback? serviceAdded;
+  WriteRequestCallback? writeRequest;
   AvailableDevicesListener? availableDevicesListener;
+  MtuChangeCallback? mtuChangeCallback;
+
   final serviceResultStreamController =
       StreamController<(String, String?)>.broadcast();
 
@@ -57,4 +56,24 @@ class BleCallbackHandler extends BleCallback {
   @override
   void onWriteRequest(String characteristicId, int offset, Uint8List? value) =>
       writeRequest?.call(characteristicId, offset, value);
+
+  @override
+  void onMtuChange(String deviceId, int mtu) =>
+      mtuChangeCallback?.call(deviceId, mtu);
 }
+
+typedef AvailableDevicesListener = void Function(
+    String deviceId, bool isAvailable);
+typedef AdvertisementCallback = void Function(String? error);
+typedef BleStateCallback = void Function(bool state);
+typedef BondStateCallback = void Function(String deviceId, int bondState);
+typedef CharacteristicSubscriptionChangeCallback = void Function(
+    String deviceId, String characteristicId, bool isSubscribed);
+typedef ConnectionStateChangeCallback = void Function(
+    String deviceId, bool connected);
+typedef ReadRequestCallback = ReadRequestResult? Function(
+    String characteristicId, int offset, Uint8List? value);
+typedef ServiceAddedCallback = void Function(String serviceId, String? error);
+typedef WriteRequestCallback = void Function(
+    String characteristicId, int offset, Uint8List? value);
+typedef MtuChangeCallback = void Function(String deviceId, int mtu);

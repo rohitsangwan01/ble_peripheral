@@ -115,4 +115,6 @@ abstract class BleCallback {
   void onConnectionStateChange(String deviceId, bool connected);
 
   void onBondStateChange(String deviceId, int bondState);
+
+  void onMtuChange(String deviceId, int mtu);
 }

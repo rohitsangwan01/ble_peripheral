@@ -32,7 +32,7 @@ import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.PluginRegistry
 import java.util.Collections
 
-private val TAG = BlePeripheralPlugin::class.java.simpleName
+private const val TAG = "BlePeripheralPlugin"
 
 @SuppressLint("MissingPermission")
 class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
@@ -48,6 +48,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
     private var gattServer: BluetoothGattServer? = null
     private val bluetoothDevicesMap: MutableMap<String, BluetoothDevice> = HashMap()
     private val emptyBytes = byteArrayOf()
+    private val listOfDevicesWaitingForBond = mutableListOf<String>()
 
     private val devices: Set<BluetoothDevice>
         get() {
@@ -235,6 +236,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
         }
     }
 
+
     private val gattServerCallback: BluetoothGattServerCallback =
         object : BluetoothGattServerCallback() {
             override fun onConnectionStateChange(
@@ -246,37 +248,12 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                 when (newState) {
                     BluetoothProfile.STATE_CONNECTED -> {
                         if (device.bondState == BluetoothDevice.BOND_NONE) {
-                            applicationContext.registerReceiver(object : BroadcastReceiver() {
-                                override fun onReceive(context: Context, intent: Intent) {
-                                    val action = intent.action
-                                    if (BluetoothDevice.ACTION_BOND_STATE_CHANGED == action) {
-                                        val state = intent.getIntExtra(
-                                            BluetoothDevice.EXTRA_BOND_STATE,
-                                            BluetoothDevice.ERROR
-                                        )
-                                        if (state == BluetoothDevice.BOND_BONDED) {
-                                            // successfully bonded
-                                            context.unregisterReceiver(this)
-                                            handler.post {
-                                                gattServer?.connect(device, true)
-                                            }
-                                        }
-                                    }
-                                }
-                            }, IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED))
-                            // create bond
-                            try {
-                                device.setPairingConfirmation(true)
-                            } catch (e: SecurityException) {
-                                Log.d(TAG, e.message, e)
-                            }
+                            // Wait for bonding
+                            listOfDevicesWaitingForBond.add(device.address)
                             device.createBond()
                         } else if (device.bondState == BluetoothDevice.BOND_BONDED) {
                             handler.post {
-                                if (gattServer != null) {
-                                    Log.d(TAG, "Connecting to device: " + device.address)
-                                    gattServer!!.connect(device, true)
-                                }
+                                gattServer?.connect(device, true)
                             }
                             synchronized(bluetoothDevicesMap) {
                                 bluetoothDevicesMap.put(
@@ -290,16 +267,20 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
 
                     BluetoothProfile.STATE_DISCONNECTED -> {
                         val deviceAddress = device.address
-                        // try reconnect immediately
-//                        handler.post {
-//                               gattServer?.cancelConnection(device);
-//                               gattServer?.connect(device, true)
-//                        }
                         synchronized(bluetoothDevicesMap) { bluetoothDevicesMap.remove(deviceAddress) }
                         onConnectionUpdate(device, status, newState)
                     }
 
                     else -> {}
+                }
+            }
+
+            override fun onMtuChanged(device: BluetoothDevice?, mtu: Int) {
+                super.onMtuChanged(device, mtu)
+                device?.address?.let {
+                    handler.post {
+                        bleCallback?.onMtuChange(it, mtu.toLong()) {}
+                    }
                 }
             }
 
@@ -378,7 +359,6 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                 super.onServiceAdded(status, service)
                 var error: String? = null
                 if (status != 0) {
-                    Log.d(TAG, "onServiceAdded Adding Service failed..")
                     error = "Adding Service failed.."
                 }
                 handler.post {
@@ -395,13 +375,6 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                 super.onDescriptorReadRequest(device, requestId, offset, descriptor)
                 handler.post {
                     val value: ByteArray? = descriptor.getCacheValue()
-                    Log.e(
-                        "Test",
-                        "onDescriptorReadRequest requestId: "
-                                + requestId + ", offset: "
-                                + offset + ", descriptor: "
-                                + descriptor.uuid + ", Value: $value"
-                    )
                     if (value != null) {
                         gattServer?.sendResponse(
                             device,
@@ -440,7 +413,6 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                     offset,
                     value
                 )
-                Log.e(TAG, "onDescriptorWriteRequest, uuid: ${descriptor.uuid}, value: $value")
                 gattServer?.sendResponse(
                     device,
                     requestId,
@@ -495,15 +467,25 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                     intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.ERROR)
                 val device: BluetoothDevice? =
                     intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+
                 handler.post {
                     bleCallback?.onBondStateChange(
                         device?.address ?: "",
                         state.toBondState(),
                     ) {}
                 }
+
+                // if waiting for connection and device is bonded
+                val waitingForConnection = listOfDevicesWaitingForBond.contains(device?.address)
+                if (state == BluetoothDevice.BOND_BONDED && device != null && waitingForConnection) {
+                    listOfDevicesWaitingForBond.remove(device.address)
+                    handler.post {
+                        gattServer?.connect(device, true)
+                    }
+                }
             }
         }
-    }   
+    }
 
     /// TODO: verify required permissions
     override fun askBlePermission(): Boolean {

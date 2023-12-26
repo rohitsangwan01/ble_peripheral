@@ -88,7 +88,7 @@ class HomeController extends GetxController {
     await BlePeripheral.startAdvertising(
       services: [serviceBattery, serviceTest],
       localName: deviceName,
-      manufacturerData: manufacturerData,
+      manufacturerData: GetPlatform.isAndroid ? manufacturerData : null,
       addManufacturerDataInScanResponse: true,
     );
   }

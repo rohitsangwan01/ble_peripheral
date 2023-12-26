@@ -3,7 +3,9 @@
 - Refactored Apis
 - Fix android permission issues
 - Update callback handlers issue
-- Fix add services
+- Add onMtuChange callback
+- Fix AddServices
+- Update Readme
 - Some more bug fixes
 
 ## 0.0.1

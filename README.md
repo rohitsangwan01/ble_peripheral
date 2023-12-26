@@ -10,7 +10,7 @@ This is an OS-independent plugin for creating a BLE Generic Attribute Profile (G
 
 ### Android
 
-Add the following permissions to your AndroidManifest.xml file:
+Add required bluetooth permissions in your AndroidManifest.xml file:
 
 ```xml
 <uses-permission android:name="android.permission.BLUETOOTH" />
@@ -19,6 +19,8 @@ Add the following permissions to your AndroidManifest.xml file:
 <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
 <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
 ```
+
+Ask permissions using [permission_handler](https://pub.dev/packages/permission_handler) plugin
 
 ### IOS/Macos
 
@@ -40,126 +42,104 @@ Requires [Nuget](https://www.nuget.org/downloads) for Winrt api's
 Make sure to initialize first
 
 ```dart
-final BlePeripheral blePeripheral = BlePeripheral();
-await blePeripheral.initialize();
+await BlePeripheral.initialize();
 ```
 
-Add services
+Add services before starting advertisement
 
 ```dart
-UUID serviceBattery = UUID(value: "0000180F-0000-1000-8000-00805F9B34FB");
-UUID characteristicBatteryLevel = UUID(value: "00002A19-0000-1000-8000-00805F9B34FB");
+String serviceBattery = "0000180F-0000-1000-8000-00805F9B34FB";
 
-BleService batteryService = BleService(
-      uuid: serviceBattery,
-      primary: true,
-      characteristics: [
-        BleCharacteristic(
-          uuid: characteristicBatteryLevel,
-          properties: [
-            CharacteristicProperties.read.index,
-            CharacteristicProperties.notify.index
-          ],
-          value: null,
-          descriptors: [],
-          permissions: [
-            AttributePermissions.readable.index
-          ],
-        ),
-      ],
-    );
-
-List<BleService> services = [batteryService];
-await blePeripheral.addServices(services);
+await BlePeripheral.addService(
+  BleService(
+    uuid: serviceBattery,
+    primary: true,
+    characteristics: [
+      BleCharacteristic(
+        uuid: "00002A19-0000-1000-8000-00805F9B34FB",
+        properties: [
+          CharacteristicProperties.read.index,
+          CharacteristicProperties.notify.index
+        ],
+        value: null,
+        permissions: [
+          AttributePermissions.readable.index
+        ],
+      ),
+    ],
+  ),
+);
 ```
 
-Start advertising
+Start advertising, get result in [setAdvertingStartedCallback]
 
 ```dart
-blePeripheral.startAdvertising(services,"TestDevice");
+/// set callback for advertising state
+BlePeripheral.setAdvertingStartedCallback((String? error) {
+  if(error != null){
+    print("AdvertisingFailed: $error")
+  }else{
+    print("AdvertingStarted");
+  }
+});
+
+// Start advertising
+await BlePeripheral.startAdvertising(
+  services: [serviceBattery],
+  localName: "TestBle",
+);
 ```
 
 Stop advertising
 
 ```dart
-blePeripheral.stopAdvertising();
+await BlePeripheral.stopAdvertising();
 ```
 
 ## Ble communication
 
-Create a class which extends `BleCallback`
+This callback is common for android and Apple, simply tells us when a central device is available
+
+on Android, we gets a device in [setConnectionStateChangeCallback] when a central device is ready to use
+
+on iOS, we gets a device in [setCharacteristicSubscriptionChangeCallback] when a central device is ready to use
 
 ```dart
-class PeripheralCallbackHandler extends BleCallback {
-  @override
-  void onAdvertisingStarted(String? error) {
-    print("advertisingStarted: $error");
-  }
+// Common for Android/Apple
+BlePeripheral.setBleCentralAvailabilityCallback((String deviceId,bool isAvailable) {
+  Get.log("OnDeviceAvailabilityChange: $deviceId : $isAvailable");
+});
 
-  @override
-  void onBleStateChange(bool state) {
-    print("BleState: $state");
-  };
+// Android only, Called when central connected
+BlePeripheral.setConnectionStateChangeCallback(ConnectionStateChangeCallback callback);
 
-  @override
-  void onServiceAdded(BleService service, String? error) {
-    print("Service added: ${service.uuid.value}");
-  }
-
-  @override
-  void onWriteRequest(BleCharacteristic characteristic, int offset, Uint8List? value) {
-    print("characteristic WriteRequires: ${characteristic.uuid.value}");
-  }
-
-  @override
-  ReadRequestResult? onReadRequest(BleCharacteristic characteristic, int offset, Uint8List? value) {
-    print("characteristic ReadRequest: ${characteristic.uuid.value}");
-    // Reply a response to readRequest, return null to respond as failure
-    return ReadRequestResult(
-      value: Uint8List.fromList([]),
-      offset: 0,
-    );
-  }
-
- 
-  @override
-  void onCharacteristicSubscriptionChange(BleCentral central, BleCharacteristic characteristic, bool isSubscribed) {
-    print("characteristic SubscriptionChange: ${characteristic.uuid.value}");
-  }
-  
-
-  /// IOS/MacOS only  
-  @override
-  void onSubscribe(BleCentral bleCentral, BleCharacteristic characteristic){
-     /// called on apple, when central subscribe to characteristic
-  }
-      
-  /// IOS/MacOS only 
-  @override
-  void onUnsubscribe(BleCentral bleCentral, BleCharacteristic characteristic) {
-    /// called on apple, when central unSubscribe from characteristic
-  }
-
-
-  /// Android only 
-  @override
-  void onConnectionStateChange(BleCentral central, bool connected) {
-    /// called on android when central successfully connected
-  }
-
-  /// Android only 
-  @override
-  void onBondStateChange(BleCentral central, int bondState) {
-    /// called on android when central successfully paired
-    print("onBondStateChange: ${central.uuid.value} : ${BondState.fromInt(bondState)}");
-  }
-}
+// Apple only, Called when central subscribes to a characteristic
+BlePeripheral.setCharacteristicSubscriptionChangeCallback(CharacteristicSubscriptionChangeCallback callback);
 ```
 
-Setup this class to receive updates
+Other available callback handlers
 
 ```dart
-blePeripheral.setBleCallback(PeripheralCallbackHandler());
+// Called when advertisement started/failed
+BlePeripheral.setAdvertingStartedCallback(AdvertisementCallback callback);
+
+// Called when Bluetooth radio on device turned on/off
+BlePeripheral.setBleStateChangeCallback(BleStateCallback callback);
+
+// Called when Central device tries to read a characteristics
+BlePeripheral.setReadRequestCallback(ReadRequestCallback callback);
+
+// When central tries to write to a characteristic
+BlePeripheral.setWriteRequestCallback(WriteRequestCallback callback);
+
+// Called when service added successfully
+BlePeripheral.setServiceAddedCallback(ServiceAddedCallback callback);
+
+// Only available on Android, Called when mtu changed
+BlePeripheral.setMtuChangeCallback(MtuChangeCallback callback);
+
+// Only available on Android, Called when central paired/unpaired
+BlePeripheral.setBondStateChangeCallback(BondStateCallback callback);
 ```
 
 ## TODO

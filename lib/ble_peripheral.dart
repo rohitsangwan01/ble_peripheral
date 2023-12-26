@@ -100,6 +100,10 @@ class BlePeripheral {
           ConnectionStateChangeCallback callback) =>
       _callbackHandler.connectionStateChange = callback;
 
+  /// Only available on Android
+  static void setMtuChangeCallback(MtuChangeCallback callback) =>
+      _callbackHandler.mtuChangeCallback = callback;
+
   static void setReadRequestCallback(ReadRequestCallback callback) =>
       _callbackHandler.readRequest = callback;
 
@@ -109,18 +113,3 @@ class BlePeripheral {
   static void setWriteRequestCallback(WriteRequestCallback callback) =>
       _callbackHandler.writeRequest = callback;
 }
-
-typedef AvailableDevicesListener = void Function(
-    String deviceId, bool isAvailable);
-typedef AdvertisementCallback = void Function(String? error);
-typedef BleStateCallback = void Function(bool state);
-typedef BondStateCallback = void Function(String deviceId, int bondState);
-typedef CharacteristicSubscriptionChangeCallback = void Function(
-    String deviceId, String characteristicId, bool isSubscribed);
-typedef ConnectionStateChangeCallback = void Function(
-    String deviceId, bool connected);
-typedef ReadRequestCallback = ReadRequestResult? Function(
-    String characteristicId, int offset, Uint8List? value);
-typedef ServiceAddedCallback = void Function(String serviceId, String? error);
-typedef WriteRequestCallback = void Function(
-    String characteristicId, int offset, Uint8List? value);
