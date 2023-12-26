@@ -31,6 +31,8 @@ endif()
 ################ NuGet install end ################
 
 list(APPEND PLUGIN_SOURCES
+  "Utils.cpp"
+  "Utils.h"
   "BlePeripheral.g.cpp"
   "BlePeripheral.g.h"
   "ble_peripheral_plugin.cpp"

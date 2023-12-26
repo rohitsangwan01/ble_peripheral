@@ -1,24 +1,26 @@
 #ifndef FLUTTER_PLUGIN_BLE_PERIPHERAL_PLUGIN_H_
 #define FLUTTER_PLUGIN_BLE_PERIPHERAL_PLUGIN_H_
 
+#include <flutter/method_channel.h>
+#include <flutter/plugin_registrar_windows.h>
+
 #include <windows.h>
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Storage.Streams.h>
+#include <winrt/Windows.Devices.Enumeration.h>
 #include <winrt/Windows.Devices.Radios.h>
 #include <winrt/Windows.Devices.Bluetooth.h>
 #include <winrt/Windows.Devices.Bluetooth.Advertisement.h>
 #include <winrt/Windows.Devices.Bluetooth.GenericAttributeProfile.h>
-#include <winrt/Windows.Devices.Enumeration.h>
-
-#include <flutter/method_channel.h>
-#include <flutter/plugin_registrar_windows.h>
 #include <memory>
 #include "BlePeripheral.g.h"
+#include "Utils.h"
 
 namespace ble_peripheral
 {
     using namespace winrt;
+    using namespace winrt::Windows::Devices;
     using namespace winrt::Windows::Foundation;
     using namespace winrt::Windows::Foundation::Collections;
     using namespace winrt::Windows::Storage::Streams;
@@ -26,7 +28,7 @@ namespace ble_peripheral
     using namespace winrt::Windows::Devices::Bluetooth;
     using namespace winrt::Windows::Devices::Bluetooth::Advertisement;
     using namespace winrt::Windows::Devices::Bluetooth::GenericAttributeProfile;
-    using namespace winrt::Windows::Devices::Enumeration;
+    using namespace Windows::Devices::Enumeration;
 
     using flutter::EncodableMap;
     using flutter::EncodableValue;
@@ -40,17 +42,23 @@ namespace ble_peripheral
 
         ~BlePeripheralPlugin();
 
+        static void SuccessCallback() {}
+        static void ErrorCallback(const FlutterError &error)
+        {
+            std::cout << "ErrorCallback: " << error.message() << std::endl;
+        }
+
         // Disallow copy and assign.
         BlePeripheralPlugin(const BlePeripheralPlugin &) = delete;
         BlePeripheralPlugin &operator=(const BlePeripheralPlugin &) = delete;
 
         // BluetoothLe
-        winrt::fire_and_forget InitializeAdapter();
-
         Radio bluetoothRadio{nullptr};
-
+        bool advertising{false};
         BluetoothLEAdvertisementPublisher bluetoothLEPublisher{nullptr};
         winrt::event_token status_changed_token;
+
+        winrt::fire_and_forget InitializeAdapter();
 
         // BlePeripheralChannel
         std::optional<FlutterError> Initialize() override;
