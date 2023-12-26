@@ -98,11 +98,7 @@ await BlePeripheral.stopAdvertising();
 
 ## Ble communication
 
-This callback is common for android and Apple, simply tells us when a central device is available
-
-on Android, we gets a device in [setConnectionStateChangeCallback] when a central device is ready to use
-
-on iOS, we gets a device in [setCharacteristicSubscriptionChangeCallback] when a central device is ready to use
+This callback is common for android and Apple, simply tells us when a central device is available, on Android, we gets a device in `setConnectionStateChangeCallback` when a central device is ready to use, on iOS we gets a device in `setCharacteristicSubscriptionChangeCallback` when a central device is ready to use
 
 ```dart
 // Common for Android/Apple
