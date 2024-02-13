@@ -70,17 +70,13 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
             CBAdvertisementDataServiceUUIDsKey: cbServices,
             CBAdvertisementDataLocalNameKey: localName,
         ]
-
-        if let manufacturerData = manufacturerData {
-            var manufData = Data()
-            manufData.append(contentsOf: withUnsafeBytes(of: manufacturerData.manufacturerId) { Data($0) })
-            manufData.append(manufacturerData.data.data)
-            advertisementData[CBAdvertisementDataManufacturerDataKey] = manufData
-        }
-
+//        if let manufacturerData = manufacturerData {
+//            var manufData = Data()
+//            manufData.append(contentsOf: withUnsafeBytes(of: manufacturerData.manufacturerId) { Data($0) })
+//            manufData.append(manufacturerData.data.data)
+//            advertisementData[CBAdvertisementDataManufacturerDataKey] = manufData
+//        }
         print("AdvertisementData: \(advertisementData)")
-        
-
         peripheralManager.startAdvertising(advertisementData)
     }
 
@@ -137,6 +133,7 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
 
     internal nonisolated func peripheralManager(_: CBPeripheralManager, didReceiveRead request: CBATTRequest) {
         bleCallback.onReadRequest(
+            deviceId: request.central.identifier.uuidString,
             characteristicId: request.characteristic.uuid.uuidString,
             offset: Int64(request.offset),
             value: request.value?.toFlutterBytes()
@@ -159,13 +156,15 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
     internal nonisolated func peripheralManager(_: CBPeripheralManager, didReceiveWrite request: [CBATTRequest]) {
         request.forEach { req in
             bleCallback.onWriteRequest(
+                deviceId: req.central.identifier.uuidString,
                 characteristicId: req.characteristic.uuid.uuidString,
                 offset: Int64(req.offset),
                 value: req.value?.toFlutterBytes()
             ) { writeResult in
                 do {
-                    try writeResult.get()
-                    self.peripheralManager.respond(to: req, withResult: .success)
+                    let response = try writeResult.get()
+                    let status = response?.status?.toCBATTErrorCode() ?? .success
+                    self.peripheralManager.respond(to: req, withResult: status)
                 } catch {
                     self.peripheralManager.respond(to: req, withResult: .requestNotSupported)
                 }

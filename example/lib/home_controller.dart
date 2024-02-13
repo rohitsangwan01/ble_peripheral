@@ -1,9 +1,9 @@
 // ignore_for_file: non_constant_identifier_names
 
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:ble_peripheral/ble_peripheral.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 
 class HomeController extends GetxController {
@@ -11,7 +11,14 @@ class HomeController extends GetxController {
   RxBool isBleOn = false.obs;
   RxList<String> devices = <String>[].obs;
 
-  String deviceName = "TestBle";
+  String get deviceName => switch (defaultTargetPlatform) {
+        TargetPlatform.android => "BleDroid",
+        TargetPlatform.iOS => "BleIOS",
+        TargetPlatform.macOS => "BleMac",
+        TargetPlatform.windows => "BleWin",
+        _ => "TestDevice"
+      };
+
   var manufacturerData = ManufacturerData(
     manufacturerId: 0x012D,
     data: Uint8List.fromList([
@@ -64,13 +71,17 @@ class HomeController extends GetxController {
       }
     });
 
-    BlePeripheral.setReadRequestCallback((characteristicId, offset, value) {
-      Get.log("ReadRequest: $characteristicId : $offset : $value");
+    BlePeripheral.setReadRequestCallback(
+        (deviceId, characteristicId, offset, value) {
+      Get.log("ReadRequest: $deviceId $characteristicId : $offset : $value");
       return ReadRequestResult(value: utf8.encode("Hello World"));
     });
 
-    BlePeripheral.setWriteRequestCallback((characteristicId, offset, value) {
-      Get.log("WriteRequest: $characteristicId : $offset : $value");
+    BlePeripheral.setWriteRequestCallback(
+        (deviceId, characteristicId, offset, value) {
+      Get.log("WriteRequest: $deviceId $characteristicId : $offset : $value");
+      // return WriteRequestResult(status: 144);
+      return null;
     });
 
     super.onInit();
@@ -88,7 +99,7 @@ class HomeController extends GetxController {
     await BlePeripheral.startAdvertising(
       services: [serviceBattery, serviceTest],
       localName: deviceName,
-      manufacturerData: GetPlatform.isAndroid ? manufacturerData : null,
+      manufacturerData: manufacturerData,
       addManufacturerDataInScanResponse: true,
     );
   }

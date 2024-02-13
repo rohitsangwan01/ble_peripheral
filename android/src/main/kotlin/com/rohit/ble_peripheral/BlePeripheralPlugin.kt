@@ -138,7 +138,6 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                         it.data
                     )
                 }
-
             }
 
             services.forEach {
@@ -294,6 +293,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                 if (gattServer == null) return
                 handler.post {
                     bleCallback?.onReadRequest(
+                        deviceIdArg = device.address,
                         characteristicIdArg = characteristic.uuid.toString(),
                         offsetArg = offset.toLong(),
                         valueArg = characteristic.value,
@@ -340,16 +340,18 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                 )
                 handler.post {
                     bleCallback?.onWriteRequest(
+                        deviceIdArg = device.address,
                         characteristicIdArg = characteristic.uuid.toString(),
                         offsetArg = offset.toLong(),
-                        valueArg = characteristic.value,
+                        valueArg = value,
                     ) {
+                        val writeResult: WriteRequestResult? = it.getOrNull()
                         gattServer?.sendResponse(
                             device,
                             requestId,
-                            BluetoothGatt.GATT_SUCCESS,
-                            0,
-                            emptyBytes
+                            writeResult?.status?.toInt() ?: BluetoothGatt.GATT_SUCCESS,
+                            writeResult?.offset?.toInt() ?: 0,
+                            writeResult?.value ?: emptyBytes
                         )
                     }
                 }

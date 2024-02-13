@@ -117,6 +117,49 @@ extension Int64 {
             return nil
         }
     }
+
+    func toCBATTErrorCode() -> CBATTError.Code {
+        switch self {
+        case 0:
+            return CBATTError.success
+        case 1:
+            return CBATTError.invalidHandle
+        case 2:
+            return CBATTError.readNotPermitted
+        case 3:
+            return CBATTError.writeNotPermitted
+        case 4:
+            return CBATTError.invalidPdu
+        case 5:
+            return CBATTError.insufficientAuthentication
+        case 6:
+            return CBATTError.requestNotSupported
+        case 7:
+            return CBATTError.invalidOffset
+        case 8:
+            return CBATTError.insufficientAuthorization
+        case 9:
+            return CBATTError.prepareQueueFull
+        case 10:
+            return CBATTError.attributeNotFound
+        case 11:
+            return CBATTError.attributeNotLong
+        case 12:
+            return CBATTError.insufficientEncryptionKeySize
+        case 13:
+            return CBATTError.invalidAttributeValueLength
+        case 14:
+            return CBATTError.unlikelyError
+        case 15:
+            return CBATTError.insufficientEncryption
+        case 16:
+            return CBATTError.unsupportedGroupType
+        case 17:
+            return CBATTError.insufficientResources
+        default:
+            return CBATTError.success
+        }
+    }
 }
 
 extension FlutterStandardTypedData {

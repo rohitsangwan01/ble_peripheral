@@ -43,9 +43,9 @@ class BleCallbackHandler extends BleCallback {
   }
 
   @override
-  ReadRequestResult? onReadRequest(
-          String characteristicId, int offset, Uint8List? value) =>
-      readRequest?.call(characteristicId, offset, value);
+  ReadRequestResult? onReadRequest(String deviceId, String characteristicId,
+          int offset, Uint8List? value) =>
+      readRequest?.call(deviceId, characteristicId, offset, value);
 
   @override
   void onServiceAdded(String serviceId, String? error) {
@@ -54,8 +54,9 @@ class BleCallbackHandler extends BleCallback {
   }
 
   @override
-  void onWriteRequest(String characteristicId, int offset, Uint8List? value) =>
-      writeRequest?.call(characteristicId, offset, value);
+  WriteRequestResult? onWriteRequest(String deviceId, String characteristicId,
+          int offset, Uint8List? value) =>
+      writeRequest?.call(deviceId, characteristicId, offset, value);
 
   @override
   void onMtuChange(String deviceId, int mtu) =>
@@ -72,8 +73,8 @@ typedef CharacteristicSubscriptionChangeCallback = void Function(
 typedef ConnectionStateChangeCallback = void Function(
     String deviceId, bool connected);
 typedef ReadRequestCallback = ReadRequestResult? Function(
-    String characteristicId, int offset, Uint8List? value);
+    String deviceId, String characteristicId, int offset, Uint8List? value);
 typedef ServiceAddedCallback = void Function(String serviceId, String? error);
-typedef WriteRequestCallback = void Function(
-    String characteristicId, int offset, Uint8List? value);
+typedef WriteRequestCallback = WriteRequestResult? Function(
+    String deviceId, String characteristicId, int offset, Uint8List? value);
 typedef MtuChangeCallback = void Function(String deviceId, int mtu);

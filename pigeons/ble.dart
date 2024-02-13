@@ -45,7 +45,15 @@ class BleDescriptor {
 class ReadRequestResult {
   Uint8List value;
   int? offset;
+  int? status;
   ReadRequestResult({required this.value, this.offset});
+}
+
+class WriteRequestResult {
+  Uint8List? value;
+  int? offset;
+  int? status;
+  WriteRequestResult({this.value, this.offset, this.status});
 }
 
 class ManufacturerData {
@@ -88,12 +96,14 @@ abstract class BlePeripheralChannel {
 @FlutterApi()
 abstract class BleCallback {
   ReadRequestResult? onReadRequest(
+    String deviceId,
     String characteristicId,
     int offset,
     Uint8List? value,
   );
 
-  void onWriteRequest(
+  WriteRequestResult? onWriteRequest(
+    String deviceId,
     String characteristicId,
     int offset,
     Uint8List? value,

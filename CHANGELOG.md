@@ -1,3 +1,9 @@
+## 2.0.0
+
+- Fix onReadRequest handler on android
+- BreakingChange: added deviceId in onReadRequest and onWriteRequest callbacks
+
+
 ## 1.0.0
 
 - Refactored Apis
