@@ -12,6 +12,7 @@ class HomeView extends GetView<HomeController> {
         appBar: AppBar(
           title: const Text('Ble Peripheral'),
           centerTitle: true,
+          elevation: 4,
         ),
         body: Padding(
           padding: const EdgeInsets.all(8.0),
@@ -28,45 +29,70 @@ class HomeView extends GetView<HomeController> {
                 ],
               ),
               const Divider(),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  const ElevatedButton(
-                    onPressed: BlePeripheral.askBlePermission,
-                    child: Text('Ask Permission'),
-                  ),
-                  ElevatedButton(
-                    onPressed: controller.addServices,
-                    child: const Text('Add Services'),
-                  ),
-                ],
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    const ElevatedButton(
+                      onPressed: BlePeripheral.askBlePermission,
+                      child: Text('Ask Permission'),
+                    ),
+                    ElevatedButton(
+                      onPressed: controller.addServices,
+                      child: const Text('Add Services'),
+                    ),
+                  ],
+                ),
               ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  ElevatedButton(
-                    onPressed: controller.startAdvertising,
-                    child: const Text('Start Advertising'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () async {
-                      await BlePeripheral.stopAdvertising();
-                      controller.isAdvertising.value = false;
-                    },
-                    child: const Text('Stop Advertising'),
-                  ),
-                ],
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    ElevatedButton(
+                      onPressed: controller.getAllServices,
+                      child: const Text('Get Services'),
+                    ),
+                    ElevatedButton(
+                      onPressed: controller.removeServices,
+                      child: const Text('Remove Services'),
+                    ),
+                  ],
+                ),
               ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  ElevatedButton(
-                    onPressed: () async {
-                      controller.updateCharacteristic();
-                    },
-                    child: const Text('Update Characteristic value'),
-                  ),
-                ],
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    ElevatedButton(
+                      onPressed: controller.startAdvertising,
+                      child: const Text('Start Advertising'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () async {
+                        await BlePeripheral.stopAdvertising();
+                        controller.isAdvertising.value = false;
+                      },
+                      child: const Text('Stop Advertising'),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () async {
+                        controller.updateCharacteristic();
+                      },
+                      child: const Text('Update Characteristic value'),
+                    ),
+                  ],
+                ),
               ),
               const Divider(),
               const Center(child: Text("Devices")),

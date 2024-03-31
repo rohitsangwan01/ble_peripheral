@@ -272,6 +272,9 @@ protocol BlePeripheralChannel {
   func stopAdvertising() throws
   func askBlePermission() throws -> Bool
   func addService(service: BleService) throws
+  func removeService(serviceId: String) throws
+  func clearServices() throws
+  func getServices() throws -> [String]
   func startAdvertising(services: [String], localName: String, timeout: Int64?, manufacturerData: ManufacturerData?, addManufacturerDataInScanResponse: Bool) throws
   func updateCharacteristic(devoiceID: String, characteristicId: String, value: FlutterStandardTypedData) throws
 }
@@ -362,6 +365,47 @@ class BlePeripheralChannelSetup {
     } else {
       addServiceChannel.setMessageHandler(nil)
     }
+    let removeServiceChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.ble_peripheral.BlePeripheralChannel.removeService", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      removeServiceChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let serviceIdArg = args[0] as! String
+        do {
+          try api.removeService(serviceId: serviceIdArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      removeServiceChannel.setMessageHandler(nil)
+    }
+    let clearServicesChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.ble_peripheral.BlePeripheralChannel.clearServices", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      clearServicesChannel.setMessageHandler { _, reply in
+        do {
+          try api.clearServices()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      clearServicesChannel.setMessageHandler(nil)
+    }
+    let getServicesChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.ble_peripheral.BlePeripheralChannel.getServices", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      getServicesChannel.setMessageHandler { _, reply in
+        do {
+          let result = try api.getServices()
+          reply(wrapResult(result))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      getServicesChannel.setMessageHandler(nil)
+    }
     let startAdvertisingChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.ble_peripheral.BlePeripheralChannel.startAdvertising", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       startAdvertisingChannel.setMessageHandler { message, reply in
@@ -448,7 +492,7 @@ protocol BleCallbackProtocol {
   func onReadRequest(deviceId deviceIdArg: String, characteristicId characteristicIdArg: String, offset offsetArg: Int64, value valueArg: FlutterStandardTypedData?, completion: @escaping (Result<ReadRequestResult?, FlutterError>) -> Void)
   func onWriteRequest(deviceId deviceIdArg: String, characteristicId characteristicIdArg: String, offset offsetArg: Int64, value valueArg: FlutterStandardTypedData?, completion: @escaping (Result<WriteRequestResult?, FlutterError>) -> Void)
   func onCharacteristicSubscriptionChange(deviceId deviceIdArg: String, characteristicId characteristicIdArg: String, isSubscribed isSubscribedArg: Bool, completion: @escaping (Result<Void, FlutterError>) -> Void)
-  func onAdvertisingStarted(error errorArg: String?, completion: @escaping (Result<Void, FlutterError>) -> Void)
+  func onAdvertisingStatusUpdate(advertising advertisingArg: Bool, error errorArg: String?, completion: @escaping (Result<Void, FlutterError>) -> Void)
   func onBleStateChange(state stateArg: Bool, completion: @escaping (Result<Void, FlutterError>) -> Void)
   func onServiceAdded(serviceId serviceIdArg: String, error errorArg: String?, completion: @escaping (Result<Void, FlutterError>) -> Void)
   func onConnectionStateChange(deviceId deviceIdArg: String, connected connectedArg: Bool, completion: @escaping (Result<Void, FlutterError>) -> Void)
@@ -519,10 +563,10 @@ class BleCallback: BleCallbackProtocol {
       }
     }
   }
-  func onAdvertisingStarted(error errorArg: String?, completion: @escaping (Result<Void, FlutterError>) -> Void) {
-    let channelName: String = "dev.flutter.pigeon.ble_peripheral.BleCallback.onAdvertisingStarted"
+  func onAdvertisingStatusUpdate(advertising advertisingArg: Bool, error errorArg: String?, completion: @escaping (Result<Void, FlutterError>) -> Void) {
+    let channelName: String = "dev.flutter.pigeon.ble_peripheral.BleCallback.onAdvertisingStatusUpdate"
     let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
-    channel.sendMessage([errorArg] as [Any?]) { response in
+    channel.sendMessage([advertisingArg, errorArg] as [Any?]) { response in
       guard let listResponse = response as? [Any?] else {
         completion(.failure(createConnectionError(withChannelName: channelName)))
         return

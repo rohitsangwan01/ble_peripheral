@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:ble_peripheral/ble_peripheral.dart';
 
 class BleCallbackHandler extends BleCallback {
-  AdvertisementCallback? advertingStarted;
+  AdvertisementStatusUpdateCallback? advertingStarted;
   BleStateCallback? bleStateChange;
   BondStateCallback? bondStateChange;
   CharacteristicSubscriptionChangeCallback? characteristicSubscriptionChange;
@@ -19,7 +19,8 @@ class BleCallbackHandler extends BleCallback {
       StreamController<(String, String?)>.broadcast();
 
   @override
-  void onAdvertisingStarted(String? error) => advertingStarted?.call(error);
+  void onAdvertisingStatusUpdate(bool advertising, String? error) =>
+      advertingStarted?.call(advertising, error);
 
   @override
   void onBleStateChange(bool state) => bleStateChange?.call(state);
@@ -65,7 +66,8 @@ class BleCallbackHandler extends BleCallback {
 
 typedef AvailableDevicesListener = void Function(
     String deviceId, bool isAvailable);
-typedef AdvertisementCallback = void Function(String? error);
+typedef AdvertisementStatusUpdateCallback = void Function(
+    bool advertising, String? error);
 typedef BleStateCallback = void Function(bool state);
 typedef BondStateCallback = void Function(String deviceId, BondState bondState);
 typedef CharacteristicSubscriptionChangeCallback = void Function(

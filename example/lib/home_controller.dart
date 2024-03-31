@@ -55,9 +55,10 @@ class HomeController extends GetxController {
     // setup callbacks
     BlePeripheral.setBleStateChangeCallback(isBleOn);
 
-    BlePeripheral.setAdvertingStartedCallback((error) {
-      isAdvertising.value = error == null;
-      Get.log("AdvertingStarted: $error");
+    BlePeripheral.setAdvertisingStatusUpdateCallback(
+        (bool advertising, String? error) {
+      isAdvertising.value = advertising;
+      Get.log("AdvertingStarted: $advertising, Error: $error");
     });
 
     BlePeripheral.setBleCentralAvailabilityCallback((deviceId, isAvailable) {
@@ -155,6 +156,16 @@ class HomeController extends GetxController {
       ),
     );
     Get.log("Services added");
+  }
+
+  void getAllServices() async {
+    List<String> services = await BlePeripheral.getServices();
+    Get.log(services.toString());
+  }
+
+  void removeServices() async {
+    await BlePeripheral.clearServices();
+    Get.log("Services removed");
   }
 
   /// Update characteristic value, to all the devices which are subscribed to it

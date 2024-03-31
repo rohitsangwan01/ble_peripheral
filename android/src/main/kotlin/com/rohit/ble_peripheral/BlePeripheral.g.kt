@@ -277,6 +277,9 @@ interface BlePeripheralChannel {
   fun stopAdvertising()
   fun askBlePermission(): Boolean
   fun addService(service: BleService)
+  fun removeService(serviceId: String)
+  fun clearServices()
+  fun getServices(): List<String>
   fun startAdvertising(services: List<String>, localName: String, timeout: Long?, manufacturerData: ManufacturerData?, addManufacturerDataInScanResponse: Boolean)
   fun updateCharacteristic(devoiceID: String, characteristicId: String, value: ByteArray)
 
@@ -380,6 +383,58 @@ interface BlePeripheralChannel {
             try {
               api.addService(serviceArg)
               wrapped = listOf<Any?>(null)
+            } catch (exception: Throwable) {
+              wrapped = wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.ble_peripheral.BlePeripheralChannel.removeService", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val serviceIdArg = args[0] as String
+            var wrapped: List<Any?>
+            try {
+              api.removeService(serviceIdArg)
+              wrapped = listOf<Any?>(null)
+            } catch (exception: Throwable) {
+              wrapped = wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.ble_peripheral.BlePeripheralChannel.clearServices", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            var wrapped: List<Any?>
+            try {
+              api.clearServices()
+              wrapped = listOf<Any?>(null)
+            } catch (exception: Throwable) {
+              wrapped = wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.ble_peripheral.BlePeripheralChannel.getServices", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            var wrapped: List<Any?>
+            try {
+              wrapped = listOf<Any?>(api.getServices())
             } catch (exception: Throwable) {
               wrapped = wrapError(exception)
             }
@@ -531,11 +586,11 @@ class BleCallback(private val binaryMessenger: BinaryMessenger) {
       } 
     }
   }
-  fun onAdvertisingStarted(errorArg: String?, callback: (Result<Unit>) -> Unit)
+  fun onAdvertisingStatusUpdate(advertisingArg: Boolean, errorArg: String?, callback: (Result<Unit>) -> Unit)
 {
-    val channelName = "dev.flutter.pigeon.ble_peripheral.BleCallback.onAdvertisingStarted"
+    val channelName = "dev.flutter.pigeon.ble_peripheral.BleCallback.onAdvertisingStatusUpdate"
     val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
-    channel.send(listOf(errorArg)) {
+    channel.send(listOf(advertisingArg, errorArg)) {
       if (it is List<*>) {
         if (it.size > 1) {
           callback(Result.failure(FlutterError(it[0] as String, it[1] as String, it[2] as String?)))

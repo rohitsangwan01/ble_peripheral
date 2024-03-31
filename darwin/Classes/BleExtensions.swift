@@ -21,6 +21,7 @@ enum CustomError: Error {
 
 /// local list of characteristic
 var characteristicsList = [CBMutableCharacteristic]()
+var servicesList = [CBMutableService]()
 
 extension BleService {
     func toCBService() -> CBMutableService {
@@ -34,6 +35,9 @@ extension BleService {
         if !chars.isEmpty {
             service.characteristics = chars
         }
+        // Add local reference of this service
+        servicesList.removeAll { $0.uuid.uuidString.lowercased() == service.uuid.uuidString.lowercased() }
+        servicesList.append(service)
         return service
     }
 }
@@ -78,6 +82,12 @@ extension BleCharacteristic {
 extension String {
     func findCharacteristic() -> CBMutableCharacteristic? {
         return characteristicsList.first { ch in
+            ch.uuid.uuidString == self
+        }
+    }
+    
+    func findService() -> CBMutableService? {
+        return servicesList.first { ch in
             ch.uuid.uuidString == self
         }
     }

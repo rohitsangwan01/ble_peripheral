@@ -47,6 +47,17 @@ class BlePeripheral {
     if (result.$2 != null) throw Exception(result.$2);
   }
 
+  static Future<void> removeService(String serviceId) =>
+      _channel.removeService(serviceId);
+
+  static Future<void> clearServices() => _channel.clearServices();
+
+  static Future<List<String>> getServices() async {
+    return List<String>.from(
+      (await _channel.getServices()).where((e) => e != null).toList(),
+    );
+  }
+
   /// To update the value of a characteristic
   static Future<void> updateCharacteristic({
     required String deviceId,
@@ -77,12 +88,13 @@ class BlePeripheral {
   /// This callback is common for android and Apple, simply tells us when a central device is ready to use
   /// on Android, we gets a device in [setConnectionStateChangeCallback] when a central device is ready to use
   /// on iOS, we gets a device in [setCharacteristicSubscriptionChangeCallback] when a central device is ready to use
-  /// 
+  ///
   static void setBleCentralAvailabilityCallback(
           AvailableDevicesListener callback) =>
       _callbackHandler.availableDevicesListener = callback;
 
-  static void setAdvertingStartedCallback(AdvertisementCallback callback) =>
+  static void setAdvertisingStatusUpdateCallback(
+          AdvertisementStatusUpdateCallback callback) =>
       _callbackHandler.advertingStarted = callback;
 
   static void setBleStateChangeCallback(BleStateCallback callback) =>

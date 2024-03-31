@@ -1,8 +1,10 @@
-## 2.0.1
+## 2.1.0
 
 - Add `notifyEncryptionRequired` and `indicateEncryptionRequired` in CharacteristicProperties
-- `onBondStateChange` will return `BondState` enum instead of integer
 - Fix `isAdvertising` result on Android
+- Add `removeService`, `clearServices`, `getServices`
+- BreakingChange: `onBondStateChange` will return `BondState` enum instead of integer
+- BreakingChange: `setAdvertingStartedCallback` changed to `setAdvertisingStatusUpdateCallback`
 
 ## 2.0.0
 

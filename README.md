@@ -39,7 +39,7 @@ Requires [Nuget](https://www.nuget.org/downloads) for Winrt api's
 
 ## Usage
 
-Make sure to initialize first
+Make sure to initialize first ( You must have required bluetooth permissions to initialize )
 
 ```dart
 await BlePeripheral.initialize();
@@ -69,18 +69,23 @@ await BlePeripheral.addService(
     ],
   ),
 );
+
+// To get list of added services
+await BlePeripheral.getServices();
+
+// To remove any specific services
+await BlePeripheral.removeService(String serviceId);
+
+// To remove all added services
+await BlePeripheral.clearServices();
 ```
 
-Start advertising, get result in [setAdvertingStartedCallback]
+Start advertising, get result in [setAdvertisingStatusUpdateCallback]
 
 ```dart
 /// set callback for advertising state
-BlePeripheral.setAdvertingStartedCallback((String? error) {
-  if(error != null){
-    print("AdvertisingFailed: $error")
-  }else{
-    print("AdvertingStarted");
-  }
+BlePeripheral.setAdvertisingStatusUpdateCallback((bool advertising, String? error) {
+  print("AdvertisingStatus: $advertising Error $error")
 });
 
 // Start advertising
@@ -117,7 +122,7 @@ Other available callback handlers
 
 ```dart
 // Called when advertisement started/failed
-BlePeripheral.setAdvertingStartedCallback(AdvertisementCallback callback);
+BlePeripheral.setAdvertisingStatusUpdateCallback(AdvertisementStatusUpdateCallback callback);
 
 // Called when Bluetooth radio on device turned on/off
 BlePeripheral.setBleStateChangeCallback(BleStateCallback callback);

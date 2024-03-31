@@ -28,6 +28,7 @@ class BleService {
   BleService(this.uuid, this.primary, this.characteristics);
 }
 
+// Use enums instead of int after fixing: https://github.com/flutter/flutter/issues/133728
 class BleCharacteristic {
   String uuid;
   List<int?> properties;
@@ -80,6 +81,12 @@ abstract class BlePeripheralChannel {
 
   void addService(BleService service);
 
+  void removeService(String serviceId);
+
+  void clearServices();
+
+  List<String> getServices();
+
   void startAdvertising(
     List<String> services,
     String localName,
@@ -118,7 +125,7 @@ abstract class BleCallback {
     bool isSubscribed,
   );
 
-  void onAdvertisingStarted(String? error);
+  void onAdvertisingStatusUpdate(bool advertising, String? error);
 
   void onBleStateChange(bool state);
 

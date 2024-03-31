@@ -83,6 +83,15 @@ fun String.findCharacteristic(): BluetoothGattCharacteristic? {
     return bluetoothGattCharacteristics[this]
 }
 
+fun String.findService(): BluetoothGattService? {
+    for (char in bluetoothGattCharacteristics.values) {
+        if (char.service?.uuid.toString() == this) {
+            return char.service
+        }
+    }
+    return null
+}
+
 fun List<Long?>.toPropertiesList(): Int {
     return this.toValidList().fold(0) { acc, i -> acc or i.toProperties() }.toInt()
 }

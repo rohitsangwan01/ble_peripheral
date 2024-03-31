@@ -325,6 +325,9 @@ class BlePeripheralChannel {
   virtual std::optional<FlutterError> StopAdvertising() = 0;
   virtual ErrorOr<bool> AskBlePermission() = 0;
   virtual std::optional<FlutterError> AddService(const BleService& service) = 0;
+  virtual std::optional<FlutterError> RemoveService(const std::string& service_id) = 0;
+  virtual std::optional<FlutterError> ClearServices() = 0;
+  virtual ErrorOr<flutter::EncodableList> GetServices() = 0;
   virtual std::optional<FlutterError> StartAdvertising(
     const flutter::EncodableList& services,
     const std::string& local_name,
@@ -395,7 +398,8 @@ class BleCallback {
     bool is_subscribed,
     std::function<void(void)>&& on_success,
     std::function<void(const FlutterError&)>&& on_error);
-  void OnAdvertisingStarted(
+  void OnAdvertisingStatusUpdate(
+    bool advertising,
     const std::string* error,
     std::function<void(void)>&& on_success,
     std::function<void(const FlutterError&)>&& on_error);

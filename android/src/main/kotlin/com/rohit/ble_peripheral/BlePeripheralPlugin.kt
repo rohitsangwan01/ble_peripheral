@@ -98,6 +98,22 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
         gattServer?.addService(service.toGattService())
     }
 
+    override fun removeService(serviceId: String) {
+        serviceId.findService()?.let {
+            gattServer?.removeService(it)
+        }
+    }
+
+    override fun clearServices() {
+        gattServer?.clearServices()
+    }
+
+    override fun getServices(): List<String> {
+        return gattServer?.services?.map {
+            it.uuid.toString()
+        } ?: emptyList()
+    }
+
     override fun startAdvertising(
         services: List<String>,
         localName: String,
@@ -159,6 +175,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
             try {
                 bluetoothLeAdvertiser?.stopAdvertising(advertiseCallback)
                 isAdvertising = false
+                bleCallback?.onAdvertisingStatusUpdate(false, null) {}
                 if (gattServer != null) {
                     val devices: Set<BluetoothDevice> = devices
                     for (device in devices) {
@@ -218,14 +235,15 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
         override fun onStartFailure(errorCode: Int) {
             super.onStartFailure(errorCode)
             handler.post {
-                when (errorCode) {
-                    ADVERTISE_FAILED_ALREADY_STARTED -> bleCallback?.onAdvertisingStarted("Already started") {}
-                    ADVERTISE_FAILED_DATA_TOO_LARGE -> bleCallback?.onAdvertisingStarted("Data too large") {}
-                    ADVERTISE_FAILED_FEATURE_UNSUPPORTED -> bleCallback?.onAdvertisingStarted("Feature unsupported") {}
-                    ADVERTISE_FAILED_INTERNAL_ERROR -> bleCallback?.onAdvertisingStarted("Internal error") {}
-                    ADVERTISE_FAILED_TOO_MANY_ADVERTISERS -> bleCallback?.onAdvertisingStarted("Too many advertisers") {}
-                    else -> bleCallback?.onAdvertisingStarted("Failed to start advertising: $errorCode") {}
+                val errorMessage: String = when (errorCode) {
+                    ADVERTISE_FAILED_ALREADY_STARTED -> "Already started"
+                    ADVERTISE_FAILED_DATA_TOO_LARGE -> "Data too large"
+                    ADVERTISE_FAILED_FEATURE_UNSUPPORTED -> "Feature unsupported"
+                    ADVERTISE_FAILED_INTERNAL_ERROR -> "Internal error"
+                    ADVERTISE_FAILED_TOO_MANY_ADVERTISERS -> "Too many advertisers"
+                    else -> "Failed to start advertising: $errorCode"
                 }
+                bleCallback?.onAdvertisingStatusUpdate(false, errorMessage) {}
             }
         }
 
@@ -233,7 +251,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
             super.onStartSuccess(settingsInEffect)
             isAdvertising = true
             handler.post {
-                bleCallback?.onAdvertisingStarted(null) {}
+                bleCallback?.onAdvertisingStatusUpdate(true, null) {}
             }
         }
     }

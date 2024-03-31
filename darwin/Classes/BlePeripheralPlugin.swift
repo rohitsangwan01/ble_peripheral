@@ -60,13 +60,31 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
     func addService(service: BleService) throws {
         peripheralManager.add(service.toCBService())
     }
+    
+    func removeService(serviceId: String) throws {
+        if let service = serviceId.findService() {
+            peripheralManager.remove(service)
+            servicesList.removeAll { $0.uuid.uuidString.lowercased() == service.uuid.uuidString.lowercased() }
+        }
+    }
+    
+    func clearServices() throws {
+        peripheralManager.removeAllServices()
+        servicesList.removeAll()
+    }
+    
+    func getServices() throws -> [String] {
+       return servicesList.map { service in
+            service.uuid.uuidString
+        }
+    }
 
     func startAdvertising(services: [String], localName: String, timeout _: Int64?, manufacturerData: ManufacturerData?, addManufacturerDataInScanResponse _: Bool) throws {
         let cbServices = services.map { uuidString in
             CBUUID(string: uuidString)
         }
 
-        var advertisementData: [String: Any] = [
+        let advertisementData: [String: Any] = [
             CBAdvertisementDataServiceUUIDsKey: cbServices,
             CBAdvertisementDataLocalNameKey: localName,
         ]
@@ -82,6 +100,7 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
 
     func stopAdvertising() throws {
         peripheralManager.stopAdvertising()
+        bleCallback.onAdvertisingStatusUpdate(advertising: false, error: nil, completion: { _ in })
     }
 
     func updateCentralList(central: CBCentral) {
@@ -110,7 +129,7 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
 
     /// Swift callbacks
     internal nonisolated func peripheralManagerDidStartAdvertising(_: CBPeripheralManager, error: Error?) {
-        bleCallback.onAdvertisingStarted(error: error?.localizedDescription, completion: { _ in })
+        bleCallback.onAdvertisingStatusUpdate(advertising: error == nil, error: error?.localizedDescription, completion: { _ in })
     }
 
     nonisolated func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
