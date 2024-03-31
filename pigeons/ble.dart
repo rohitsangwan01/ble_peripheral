@@ -17,6 +17,9 @@ import 'package:pigeon/pigeon.dart';
   ),
 )
 
+/// Enums
+enum BondState { bonding, bonded, none }
+
 /// Models
 class BleService {
   String uuid;
@@ -124,7 +127,7 @@ abstract class BleCallback {
   // Android only
   void onConnectionStateChange(String deviceId, bool connected);
 
-  void onBondStateChange(String deviceId, int bondState);
+  void onBondStateChange(String deviceId, BondState bondState);
 
   void onMtuChange(String deviceId, int mtu);
 }

@@ -25,7 +25,7 @@ class BleCallbackHandler extends BleCallback {
   void onBleStateChange(bool state) => bleStateChange?.call(state);
 
   @override
-  void onBondStateChange(String deviceId, int bondState) =>
+  void onBondStateChange(String deviceId, BondState bondState) =>
       bondStateChange?.call(deviceId, bondState);
 
   @override
@@ -67,7 +67,7 @@ typedef AvailableDevicesListener = void Function(
     String deviceId, bool isAvailable);
 typedef AdvertisementCallback = void Function(String? error);
 typedef BleStateCallback = void Function(bool state);
-typedef BondStateCallback = void Function(String deviceId, int bondState);
+typedef BondStateCallback = void Function(String deviceId, BondState bondState);
 typedef CharacteristicSubscriptionChangeCallback = void Function(
     String deviceId, String characteristicId, bool isSubscribed);
 typedef ConnectionStateChangeCallback = void Function(

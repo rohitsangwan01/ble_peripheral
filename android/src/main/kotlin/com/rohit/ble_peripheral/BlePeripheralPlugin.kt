@@ -49,6 +49,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
     private val bluetoothDevicesMap: MutableMap<String, BluetoothDevice> = HashMap()
     private val emptyBytes = byteArrayOf()
     private val listOfDevicesWaitingForBond = mutableListOf<String>()
+    private var isAdvertising: Boolean? = null
 
     private val devices: Set<BluetoothDevice>
         get() {
@@ -81,12 +82,12 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
 
 
     override fun isAdvertising(): Boolean? {
-        return null
+        return isAdvertising
     }
 
     override fun isSupported(): Boolean {
         val bluetoothAdapter = bluetoothManager.adapter
-        if (!bluetoothAdapter.isEnabled) throw UnsupportedOperationException("Bluetooth is disabled.")
+        // if (!bluetoothAdapter.isEnabled) throw UnsupportedOperationException("Bluetooth is disabled.")
         if (!bluetoothAdapter.isMultipleAdvertisementSupported) throw UnsupportedOperationException(
             "Bluetooth LE Advertising not supported on this device."
         )
@@ -157,12 +158,13 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
         handler.post {
             try {
                 bluetoothLeAdvertiser?.stopAdvertising(advertiseCallback)
+                isAdvertising = false
                 if (gattServer != null) {
                     val devices: Set<BluetoothDevice> = devices
                     for (device in devices) {
-                        gattServer!!.cancelConnection(device)
+                        gattServer?.cancelConnection(device)
                     }
-//                    gattServer!!.close()
+//                    gattServer?.close()
 //                    gattServer = null
                 }
             } catch (ignored: IllegalStateException) {
@@ -229,6 +231,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
 
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
             super.onStartSuccess(settingsInEffect)
+            isAdvertising = true
             handler.post {
                 bleCallback?.onAdvertisingStarted(null) {}
             }

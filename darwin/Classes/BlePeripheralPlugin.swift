@@ -76,7 +76,7 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
 //            manufData.append(manufacturerData.data.data)
 //            advertisementData[CBAdvertisementDataManufacturerDataKey] = manufData
 //        }
-        print("AdvertisementData: \(advertisementData)")
+//        print("AdvertisementData: \(advertisementData)")
         peripheralManager.startAdvertising(advertisementData)
     }
 

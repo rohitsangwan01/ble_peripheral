@@ -98,6 +98,14 @@ extension Int64 {
             return CBCharacteristicProperties.notify
         case 5:
             return CBCharacteristicProperties.indicate
+        case 6:
+            return CBCharacteristicProperties.authenticatedSignedWrites
+        case 7:
+            return CBCharacteristicProperties.extendedProperties
+        case 8:
+            return CBCharacteristicProperties.notifyEncryptionRequired
+        case 9:
+            return CBCharacteristicProperties.indicateEncryptionRequired
         default:
             return nil
         }
@@ -186,26 +194,3 @@ extension [Int64?] {
         return Data(bytes: finalArray, count: finalArray.count)
     }
 }
-
-// extension CBCharacteristic {
-//    func toBleCharacteristic() -> BleCharacteristic {
-//        return BleCharacteristic(
-//            uuid: uuid.toUUID(),
-//            properties: [Int64(properties.rawValue)],
-//            permissions: [],
-//            descriptors: nil,
-//            value: value?.toFlutterBytes()
-//        )
-//    }
-// }
-// extension CBService {
-//    func toBleService() -> BleService {
-//        return BleService(
-//            uuid: uuid.toUUID(),
-//            primary: isPrimary,
-//            characteristics: characteristics?.map { char in
-//                char.toBleCharacteristic()
-//            } ?? []
-//        )
-//    }
-// }

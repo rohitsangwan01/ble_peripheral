@@ -111,6 +111,8 @@ fun Int.toProperties(): Int {
         5 -> BluetoothGattCharacteristic.PROPERTY_INDICATE
         6 -> BluetoothGattCharacteristic.PROPERTY_SIGNED_WRITE
         7 -> BluetoothGattCharacteristic.PROPERTY_EXTENDED_PROPS
+        8 -> BluetoothGattCharacteristic.PROPERTY_NOTIFY //  NotifyEncryptionRequired
+        9 -> BluetoothGattCharacteristic.PROPERTY_INDICATE //   IndicateEncryptionRequired
         else -> 0
     }
 }
@@ -125,31 +127,11 @@ fun Int.toPermission(): Int {
     }
 }
 
-fun Int.toBondState(): Long {
+fun Int.toBondState(): BondState {
     return when (this) {
-        BluetoothDevice.BOND_BONDING -> 0
-        BluetoothDevice.BOND_BONDED -> 1
-        BluetoothDevice.BOND_NONE -> 2
-        else -> 0
+        BluetoothDevice.BOND_BONDING -> BondState.BONDING
+        BluetoothDevice.BOND_BONDED -> BondState.BONDED
+        BluetoothDevice.BOND_NONE -> BondState.NONE
+        else -> BondState.NONE
     }
 }
-
-/// From Native -> Flutter
-//fun BluetoothGattCharacteristic.toBleCharacteristic(): BleCharacteristic {
-//    val property = mutableListOf<Long>()
-//    val permission = mutableListOf<Long>()
-//    return BleCharacteristic(
-//        uuid = uuid.toString(),
-//        properties = property,
-//        permissions = permission,
-//        value = value
-//    )
-//}
-//
-//fun BluetoothGattService.toBleService(): BleService {
-//    return BleService(
-//        uuid = uuid.toString(),
-//        primary = type == BluetoothGattService.SERVICE_TYPE_PRIMARY,
-//        characteristics = characteristics.map { it.toBleCharacteristic() },
-//    )
-//}

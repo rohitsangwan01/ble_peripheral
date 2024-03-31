@@ -1,3 +1,4 @@
+// Enums as mapped with index to native side, do not change order
 enum CharacteristicProperties {
   broadcast,
   read,
@@ -6,7 +7,9 @@ enum CharacteristicProperties {
   notify,
   indicate,
   authenticatedSignedWrites,
-  extendedProperties
+  extendedProperties,
+  notifyEncryptionRequired,
+  indicateEncryptionRequired
 }
 
 enum AttributePermissions {
@@ -14,23 +17,4 @@ enum AttributePermissions {
   writeable,
   readEncryptionRequired,
   writeEncryptionRequired
-}
-
-enum BondState {
-  bonding,
-  bonded,
-  none;
-
-  static BondState fromInt(int value) {
-    switch (value) {
-      case 0:
-        return BondState.bonding;
-      case 1:
-        return BondState.bonded;
-      case 2:
-        return BondState.none;
-      default:
-        throw ArgumentError.value(value, 'value', 'Invalid value');
-    }
-  }
 }
