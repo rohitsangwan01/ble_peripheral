@@ -33,6 +33,16 @@ namespace ble_peripheral
     using flutter::EncodableMap;
     using flutter::EncodableValue;
 
+    // create enum for this
+    enum class BlePermission : int
+    {
+        readable = 0,
+        writeable = 1,
+        readEncryptionRequired = 2,
+        writeEncryptionRequired = 3,
+        none = 4,
+    };
+
     class BlePeripheralPlugin : public flutter::Plugin, public BlePeripheralChannel
     {
     public:
@@ -55,28 +65,34 @@ namespace ble_peripheral
         // BluetoothLe
         Radio bluetoothRadio{nullptr};
         bool advertising{false};
-        BluetoothLEAdvertisementPublisher bluetoothLEPublisher{nullptr};
         winrt::event_token status_changed_token;
 
         winrt::fire_and_forget InitializeAdapter();
 
+        winrt::fire_and_forget AddServiceAsync(const BleService &service);
+        GattCharacteristicProperties toGattCharacteristicProperties(int property);
+        BlePermission toBlePermission(int permission);
+
         // BlePeripheralChannel
-        std::optional<FlutterError> Initialize() override;
-        ErrorOr<std::optional<bool>> IsAdvertising() override;
-        ErrorOr<bool> IsSupported() override;
-        ErrorOr<bool> AskBlePermission() override;
-        std::optional<FlutterError> AddService(const BleService &service) override;
+        std::optional<FlutterError> Initialize();
+        ErrorOr<std::optional<bool>> IsAdvertising();
+        ErrorOr<bool> IsSupported();
+        std::optional<FlutterError> StopAdvertising();
+        ErrorOr<bool> AskBlePermission();
+        std::optional<FlutterError> AddService(const BleService &service);
+        std::optional<FlutterError> RemoveService(const std::string &service_id);
+        std::optional<FlutterError> ClearServices();
+        ErrorOr<flutter::EncodableList> GetServices();
         std::optional<FlutterError> StartAdvertising(
             const flutter::EncodableList &services,
             const std::string &local_name,
             const int64_t *timeout,
             const ManufacturerData *manufacturer_data,
-            bool add_manufacturer_data_in_scan_response) override;
-        std::optional<FlutterError> StopAdvertising() override;
+            bool add_manufacturer_data_in_scan_response);
         std::optional<FlutterError> UpdateCharacteristic(
             const std::string &devoice_i_d,
             const std::string &characteristic_id,
-            const std::vector<uint8_t> &value) override;
+            const std::vector<uint8_t> &value);
     };
 
 } // namespace ble_peripheral

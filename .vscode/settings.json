@@ -87,5 +87,12 @@
     "typeindex": "cpp",
     "future": "cpp",
     "regex": "cpp"
-  }
+  },
+  "cSpell.words": [
+    "hresult",
+    "hstring",
+    "INVALIDARG",
+    "rohit",
+    "winrt"
+  ]
 }

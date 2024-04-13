@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:ble_peripheral/src/ble_callback_handler.dart';
@@ -32,19 +33,27 @@ class BlePeripheral {
     BleService service, {
     Duration? timeout,
   }) async {
-    await _channel.addService(service);
-    (String, String?) result = await _callbackHandler
-        .serviceResultStreamController.stream
-        .where((event) => event.$1.toLowerCase() == service.uuid.toLowerCase())
+    Completer<void> completer = Completer<void>();
+    _callbackHandler.serviceResultStreamController.stream
+        .where((event) =>
+            event.serviceId.toLowerCase() == service.uuid.toLowerCase())
         .first
         .timeout(
-          timeout ?? const Duration(seconds: 5),
-          onTimeout: () => (
-            service.uuid,
-            "Timeout in verifying service addition",
-          ),
-        );
-    if (result.$2 != null) throw Exception(result.$2);
+      timeout ?? const Duration(seconds: 5),
+      onTimeout: () async {
+        return (serviceId: service.uuid, error: 'Service addition timed out');
+      },
+    ).then((value) {
+      if (!completer.isCompleted) {
+        if (value.error != null) {
+          completer.completeError(value.error!);
+        } else {
+          completer.complete();
+        }
+      }
+    });
+    await _channel.addService(service);
+    await completer.future;
   }
 
   static Future<void> removeService(String serviceId) =>

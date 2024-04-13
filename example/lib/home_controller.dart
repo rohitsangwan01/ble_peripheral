@@ -46,7 +46,7 @@ class HomeController extends GetxController {
   String serviceBattery = "0000180F-0000-1000-8000-00805F9B34FB";
   String characteristicBatteryLevel = "00002A19-0000-1000-8000-00805F9B34FB";
   // Test service
-  String serviceTest = "0000180A-0000-1000-8000-00805F9B34FB";
+  String serviceTest = "0000180D-0000-1000-8000-00805F9B34FB";
   String characteristicTest = "00002A18-0000-1000-8000-00805F9B34FB";
 
   @override
@@ -106,56 +106,60 @@ class HomeController extends GetxController {
   }
 
   void addServices() async {
-    var notificationControlDescriptor = BleDescriptor(
-      uuid: "00002908-0000-1000-8000-00805F9B34FB",
-      value: Uint8List.fromList([0, 1]),
-      permissions: [
-        AttributePermissions.readable.index,
-        AttributePermissions.writeable.index
-      ],
-    );
-
-    await BlePeripheral.addService(
-      BleService(
-        uuid: serviceBattery,
-        primary: true,
-        characteristics: [
-          BleCharacteristic(
-            uuid: characteristicBatteryLevel,
-            properties: [
-              CharacteristicProperties.read.index,
-              CharacteristicProperties.notify.index
-            ],
-            value: null,
-            permissions: [AttributePermissions.readable.index],
-          ),
+    try {
+      var notificationControlDescriptor = BleDescriptor(
+        uuid: "00002908-0000-1000-8000-00805F9B34FB",
+        value: Uint8List.fromList([0, 1]),
+        permissions: [
+          AttributePermissions.readable.index,
+          AttributePermissions.writeable.index
         ],
-      ),
-    );
+      );
 
-    await BlePeripheral.addService(
-      BleService(
-        uuid: serviceTest,
-        primary: true,
-        characteristics: [
-          BleCharacteristic(
-            uuid: characteristicTest,
-            properties: [
-              CharacteristicProperties.read.index,
-              CharacteristicProperties.notify.index,
-              CharacteristicProperties.write.index,
-            ],
-            descriptors: [notificationControlDescriptor],
-            value: null,
-            permissions: [
-              AttributePermissions.readable.index,
-              AttributePermissions.writeable.index
-            ],
-          ),
-        ],
-      ),
-    );
-    Get.log("Services added");
+      await BlePeripheral.addService(
+        BleService(
+          uuid: serviceBattery,
+          primary: true,
+          characteristics: [
+            BleCharacteristic(
+              uuid: characteristicBatteryLevel,
+              properties: [
+                CharacteristicProperties.read.index,
+                CharacteristicProperties.notify.index
+              ],
+              value: null,
+              permissions: [AttributePermissions.readable.index],
+            ),
+          ],
+        ),
+      );
+
+      await BlePeripheral.addService(
+        BleService(
+          uuid: serviceTest,
+          primary: true,
+          characteristics: [
+            BleCharacteristic(
+              uuid: characteristicTest,
+              properties: [
+                CharacteristicProperties.read.index,
+                CharacteristicProperties.notify.index,
+                CharacteristicProperties.write.index,
+              ],
+              descriptors: [notificationControlDescriptor],
+              value: null,
+              permissions: [
+                AttributePermissions.readable.index,
+                AttributePermissions.writeable.index
+              ],
+            ),
+          ],
+        ),
+      );
+      Get.log("Services added");
+    } catch (e) {
+      Get.log("Error: $e");
+    }
   }
 
   void getAllServices() async {

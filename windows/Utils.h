@@ -48,6 +48,10 @@ namespace ble_peripheral
         {
             throw FlutterError(err.what());
         }
+        catch (...)
+        {
+            throw FlutterError("Unknown error");
+        }
     }
 
 } // namespace ble_peripheral

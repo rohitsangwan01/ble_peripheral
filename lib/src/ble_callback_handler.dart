@@ -16,7 +16,7 @@ class BleCallbackHandler extends BleCallback {
   MtuChangeCallback? mtuChangeCallback;
 
   final serviceResultStreamController =
-      StreamController<(String, String?)>.broadcast();
+      StreamController<({String serviceId, String? error})>.broadcast();
 
   @override
   void onAdvertisingStatusUpdate(bool advertising, String? error) =>
@@ -51,7 +51,7 @@ class BleCallbackHandler extends BleCallback {
   @override
   void onServiceAdded(String serviceId, String? error) {
     serviceAdded?.call(serviceId, error);
-    serviceResultStreamController.add((serviceId, error));
+    serviceResultStreamController.add((serviceId: serviceId, error: error));
   }
 
   @override
