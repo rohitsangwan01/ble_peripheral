@@ -82,7 +82,7 @@ class HomeController extends GetxController {
         (deviceId, characteristicId, offset, value) {
       Get.log("WriteRequest: $deviceId $characteristicId : $offset : $value");
       // return WriteRequestResult(status: 144);
-      return null;
+      return WriteRequestResult();
     });
 
     super.onInit();

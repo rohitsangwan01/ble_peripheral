@@ -483,28 +483,18 @@ namespace ble_peripheral
                             int64_t offset = request.Offset();
                             auto bytevc = to_bytevc(request.Value());
                             std::vector<uint8_t> *value_arg = &bytevc;
+
                             bleCallback->OnWriteRequest(
                                 deviceId, characteristicId, offset, value_arg,
                                 // SuccessCallback
                                 [deferral, request, localChar](const WriteRequestResult *writeResult)
                                 {
-                                  std::cout << "Got success response" << std::endl;
-                                  if (writeResult == nullptr)
-                                  {
-                                    // Respond successfully
-                                    std::cout << "Responding to write request" << std::endl;
-                                    request.Respond();
-                                  }
-                                  else if (writeResult->status() != nullptr)
-                                  {
-                                    // respond with error, FIXME: parse proper error
+                                  // respond with error if status is not null,
+                                  // FIXME: parse proper error
+                                  if (writeResult->status() != nullptr)
                                     request.RespondWithProtocolError(GattProtocolError::InvalidHandle());
-                                  }
                                   else
-                                  {
-                                    // Respond successfully
                                     request.Respond();
-                                  }
                                   deferral.Complete();
                                 },
                                 // ErrorCallback
@@ -512,7 +502,10 @@ namespace ble_peripheral
                                 {
                                   std::cout << "ErrorCallback: " << error.message() << std::endl;
                                   deferral.Complete();
-                                }); });
+                                });
+
+                            // Write Request
+                          });
   }
 
   void BlePeripheralPlugin::disposeGattServiceObject(GattServiceProviderObject *gattServiceObject)
