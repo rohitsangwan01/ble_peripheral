@@ -1,3 +1,10 @@
+## 2.2.3
+
+- Fix windows crash on stopping advertisement sometimes
+- Add windows capability to write static characteristic and descriptor value
+- Fix windows crash sometimes on clearing services
+- Improve windows advertising status
+
 ## 2.2.2
 
 - Fix windows crash if readResponse was null

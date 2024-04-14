@@ -19,7 +19,7 @@ namespace ble_peripheral
   using ble_peripheral::ErrorOr;
   std::unique_ptr<BleCallback> bleCallback;
   std::map<std::string, GattServiceProviderObject *> serviceProviderMap;
-  std::map<std::string, IBuffer> descriptorCache = {};
+  std::mutex cout_mutex;
 
   // static
   void BlePeripheralPlugin::RegisterWithRegistrar(flutter::PluginRegistrarWindows *registrar)
@@ -68,16 +68,7 @@ namespace ble_peripheral
     // Get serviceProviderMap length
     if (serviceProviderMap.size() == 0)
       return ErrorOr<std::optional<bool>>(std::optional<bool>(false));
-
-    bool advertising = true;
-    for (auto const &[key, gattServiceObject] : serviceProviderMap)
-    {
-      if (gattServiceObject->lastStatus != GattServiceProviderAdvertisementStatus::Started)
-      {
-        advertising = false;
-        break;
-      }
-    }
+    bool advertising = AreAllServicesStarted();
     return ErrorOr<std::optional<bool>>(std::optional<bool>(advertising));
   };
 
@@ -101,11 +92,7 @@ namespace ble_peripheral
   std::optional<FlutterError> BlePeripheralPlugin::RemoveService(const std::string &service_id)
   {
     // lower case the service_id
-    std::string serviceId = service_id;
-    std::transform(serviceId.begin(), serviceId.end(), serviceId.begin(),
-                   [](unsigned char c) -> char
-                   { return static_cast<char>(std::tolower(c)); });
-
+    std::string serviceId = to_lower_case(service_id);
     if (serviceProviderMap.find(serviceId) == serviceProviderMap.end())
     {
       std::cout << "Service not found in map" << std::endl;
@@ -151,6 +138,14 @@ namespace ble_peripheral
       if (serviceProviderMap.size() == 0)
         return FlutterError("No services added to advertise");
 
+      if (AreAllServicesStarted())
+      {
+        std::cout << "All services already advertising" << std::endl;
+        uiThreadHandler_.Post([]
+                              { bleCallback->OnAdvertisingStatusUpdate(true, nullptr, SuccessCallback, ErrorCallback); });
+        return std::nullopt;
+      }
+
       auto advertisementParameter = GattServiceProviderAdvertisingParameters();
       advertisementParameter.IsDiscoverable(true);
       advertisementParameter.IsConnectable(true);
@@ -179,17 +174,22 @@ namespace ble_peripheral
   {
     for (auto const &[key, gattServiceObject] : serviceProviderMap)
     {
-      if (gattServiceObject->obj.AdvertisementStatus() != GattServiceProviderAdvertisementStatus::Started)
+      try
       {
-        std::cout << "Service " << key << " is not advertising, skipping" << std::endl;
-        continue;
+        gattServiceObject->obj.StopAdvertising();
+        std::cout << "Stopped advertising for service: " << key << std::endl;
       }
-      gattServiceObject->obj.StopAdvertising();
+      catch (const winrt::hresult_error &e)
+      {
+        std::wcerr << "Failed to stop service: " << key.c_str() << ", Error: " << e.message().c_str() << std::endl;
+      }
+      catch (...)
+      {
+        std::cout << "Error: Unknown error" << std::endl;
+      }
     }
-
     uiThreadHandler_.Post([]
                           { bleCallback->OnAdvertisingStatusUpdate(false, nullptr, SuccessCallback, ErrorCallback); });
-
     return std::nullopt;
   }
 
@@ -271,6 +271,13 @@ namespace ble_peripheral
           }
         }
 
+        const std::vector<uint8_t> *characteristicValue = characteristic.value();
+        if (characteristicValue != nullptr)
+        {
+          auto characteristicBytes = from_bytevc(*characteristicValue);
+          charParameters.StaticValue(characteristicBytes);
+        }
+
         auto characteristicResult = co_await serviceProvider.Service().CreateCharacteristicAsync(uuid_to_guid(characteristicUuid), charParameters);
         if (characteristicResult.Error() != BluetoothError::Success)
         {
@@ -315,7 +322,12 @@ namespace ble_peripheral
               break;
             }
           }
-
+          const std::vector<uint8_t> *descriptorValue = descriptor.value();
+          if (descriptorValue != nullptr)
+          {
+            auto descriptorBytes = from_bytevc(*descriptorValue);
+            descriptorParameters.StaticValue(descriptorBytes);
+          }
           auto descriptorResult = co_await gattCharacteristic.CreateDescriptorAsync(uuid_to_guid(descriptorUuid), descriptorParameters);
           if (descriptorResult.Error() != BluetoothError::Success)
           {
@@ -323,20 +335,6 @@ namespace ble_peripheral
             co_return;
           }
           GattLocalDescriptor gattDescriptor = descriptorResult.Descriptor();
-
-          const std::vector<uint8_t> *descriptorValue = descriptor.value();
-          if (descriptorValue != nullptr)
-          {
-            auto descriptorBytes = from_bytevc(*descriptorValue);
-            auto descriptorGuid = guid_to_uuid(gattDescriptor.Uuid());
-            descriptorCache.insert_or_assign(descriptorGuid, descriptorBytes);
-
-            // Store gattDescriptorObject
-            auto gattDescriptorObject = new GattDescriptorObject();
-            gattDescriptorObject->read_requested_token = gattDescriptor.ReadRequested({this, &BlePeripheralPlugin::DescriptorReadRequestedAsync});
-            gattDescriptorObject->write_requested_token = gattDescriptor.WriteRequested({this, &BlePeripheralPlugin::DescriptorWriteRequestedAsync});
-            gattCharacteristicObject->descriptor_tokens.insert_or_assign(descriptorGuid, gattDescriptorObject);
-          }
         }
 
         gattCharacteristicObjList.insert_or_assign(guid_to_uuid(gattCharacteristic.Uuid()), gattCharacteristicObject);
@@ -346,7 +344,6 @@ namespace ble_peripheral
       gattServiceProviderObject->obj = serviceProvider;
       gattServiceProviderObject->characteristics = gattCharacteristicObjList;
       gattServiceProviderObject->advertisement_status_changed_token = serviceProvider.AdvertisementStatusChanged({this, &BlePeripheralPlugin::ServiceProvider_AdvertisementStatusChanged});
-      gattServiceProviderObject->lastStatus = serviceProvider.AdvertisementStatus();
       serviceProviderMap.insert_or_assign(guid_to_uuid(serviceProvider.Service().Uuid()), gattServiceProviderObject);
 
       uiThreadHandler_.Post([serviceUuid]
@@ -380,38 +377,26 @@ namespace ble_peripheral
   /// Handlers
 
   /// Advertisements Listener
-  void BlePeripheralPlugin::ServiceProvider_AdvertisementStatusChanged(GattServiceProvider const &sender, GattServiceProviderAdvertisementStatusChangedEventArgs const &)
+  void BlePeripheralPlugin::ServiceProvider_AdvertisementStatusChanged(GattServiceProvider const &sender, GattServiceProviderAdvertisementStatusChangedEventArgs const &args)
   {
+    std::lock_guard<std::mutex> lock(cout_mutex);
     auto serviceUuid = guid_to_uuid(sender.Service().Uuid());
-
-    for (auto const &[key, gattServiceObject] : serviceProviderMap)
+    if (args.Error() != BluetoothError::Success)
     {
-      // if last state is Created and current is aborted then ignore this
-      if (serviceUuid == key)
-      {
-        if (gattServiceObject->lastStatus == GattServiceProviderAdvertisementStatus::Created && sender.AdvertisementStatus() == GattServiceProviderAdvertisementStatus::Aborted)
-          return;
-        else
-          gattServiceObject->lastStatus = sender.AdvertisementStatus();
-        auto statusStr = AdvertisementStatusToString(sender.AdvertisementStatus());
-        std::cout << "AdvertisingStatusChanged " << serviceUuid << " ,AdvertisingStatus " << statusStr << " /n " << std::endl;
-        break;
-      }
+      std::string errorStr = ParseBluetoothError(args.Error());
+      std::cout << "AdvertisementStatusChanged " << serviceUuid << ", Error " << errorStr << std::endl;
+
+      uiThreadHandler_.Post([errorStr]
+                            { bleCallback->OnAdvertisingStatusUpdate(false, &errorStr, SuccessCallback, ErrorCallback); });
+      return;
     }
+
+    auto argStatus = args.Status();
+    auto statusStr = AdvertisementStatusToString(argStatus);
+    std::cout << "AdvertisingStatus of service " << serviceUuid << ", changed to " << statusStr << " " << std::endl;
 
     // Check if all services started
-    bool allServicesStarted = true;
-    for (auto const &[key, gattServiceObject] : serviceProviderMap)
-    {
-      if (gattServiceObject->lastStatus != GattServiceProviderAdvertisementStatus::Started)
-      {
-        allServicesStarted = false;
-        break;
-      };
-    }
-
-    // Notify Flutter
-    if (allServicesStarted)
+    if (AreAllServicesStarted())
     {
       uiThreadHandler_.Post([]
                             { bleCallback->OnAdvertisingStatusUpdate(true, nullptr, SuccessCallback, ErrorCallback); });
@@ -606,45 +591,11 @@ namespace ble_peripheral
                           });
   }
 
-  /// Descriptor Listeners
-  winrt::fire_and_forget BlePeripheralPlugin::DescriptorReadRequestedAsync(GattLocalDescriptor const &sender, GattReadRequestedEventArgs args)
-  {
-    auto deferral = args.GetDeferral();
-    GattReadRequest request = co_await args.GetRequestAsync();
-    if (request == nullptr)
-    {
-      std::cout << "No access allowed to the device" << std::endl;
-      deferral.Complete();
-      co_return;
-    }
-    auto descriptorId = guid_to_uuid(sender.Uuid());
-    if (descriptorCache.find(descriptorId) != descriptorCache.end())
-    {
-      IBuffer bytes = descriptorCache[descriptorId];
-      DataWriter writer;
-      writer.ByteOrder(ByteOrder::LittleEndian);
-      writer.WriteBuffer(bytes);
-      request.RespondWithValue(writer.DetachBuffer());
-    }
-    else
-    {
-      // Handle case if no cache available
-      std::cout << "No descriptor value was provided to read: " << descriptorId << std::endl;
-    }
-    deferral.Close();
-  }
-
-  void BlePeripheralPlugin::DescriptorWriteRequestedAsync(GattLocalDescriptor const &sender, GattWriteRequestedEventArgs args)
-  {
-    auto descriptorId = guid_to_uuid(sender.Uuid());
-    std::cout << "Descriptor Write request received: " << descriptorId << std::endl;
-  }
-
   void BlePeripheralPlugin::disposeGattServiceObject(GattServiceProviderObject *gattServiceObject)
   {
+    auto serviceId = guid_to_uuid(gattServiceObject->obj.Service().Uuid());
     try
     {
-      auto serviceId = guid_to_uuid(gattServiceObject->obj.Service().Uuid());
       // check if serviceMap have this uuid
       if (serviceProviderMap.find(serviceId) == serviceProviderMap.end())
       {
@@ -656,10 +607,18 @@ namespace ble_peripheral
       gattServiceObject->obj.AdvertisementStatusChanged(gattServiceObject->advertisement_status_changed_token);
 
       // Stop advertising if started
-      if (gattServiceObject->obj.AdvertisementStatus() == GattServiceProviderAdvertisementStatus::Started)
+
+      try
       {
-        gattServiceObject->obj.StopAdvertising();
-      };
+        if (gattServiceObject->obj.AdvertisementStatus() == GattServiceProviderAdvertisementStatus::Started)
+        {
+          gattServiceObject->obj.StopAdvertising();
+        }
+      }
+      catch (...)
+      {
+        std::cout << "Warning: Failed to stop advertisement of " << serviceId << std::endl;
+      }
 
       // clean resources for characteristics
       for (auto const &[chatKey, gattCharacteristicObject] : gattServiceObject->characteristics)
@@ -667,14 +626,11 @@ namespace ble_peripheral
         gattCharacteristicObject->obj.ReadRequested(gattCharacteristicObject->read_requested_token);
         gattCharacteristicObject->obj.WriteRequested(gattCharacteristicObject->write_requested_token);
         gattCharacteristicObject->obj.SubscribedClientsChanged(gattCharacteristicObject->value_changed_token);
-
-        // FIXME: Dispose descriptor tokens
-        // for (auto const &[descKey, gattDescriptorObj] : gattCharacteristicObject->descriptor_tokens)
-        //{
-        //  gattDescriptorObj->obj.ReadRequested(gattDescriptorObj->read_requested_token);
-        //  gattDescriptorObj->obj.WriteRequested(gattDescriptorObj->write_requested_token);
-        //}
       }
+    }
+    catch (const winrt::hresult_error &e)
+    {
+      std::wcerr << "Failed to clear service: " << serviceId.c_str() << ", Error: " << e.message().c_str() << std::endl;
     }
     catch (...)
     {
@@ -811,6 +767,18 @@ namespace ble_peripheral
       }
     }
     return nullptr;
+  }
+
+  bool BlePeripheralPlugin::AreAllServicesStarted()
+  {
+    for (auto const &[key, gattServiceObject] : serviceProviderMap)
+    {
+      if (gattServiceObject->obj.AdvertisementStatus() != GattServiceProviderAdvertisementStatus::Started)
+      {
+        return false;
+      }
+    }
+    return true;
   }
 
 } // namespace ble_peripheral
