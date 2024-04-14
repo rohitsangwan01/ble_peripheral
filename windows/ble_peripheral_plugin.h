@@ -47,6 +47,7 @@ namespace ble_peripheral
     struct GattCharacteristicObject
     {
         GattLocalCharacteristic obj = nullptr;
+        IVectorView<GattSubscribedClient> stored_clients;
         winrt::event_token value_changed_token;
         winrt::event_token read_requested_token;
         winrt::event_token write_requested_token;
@@ -57,7 +58,7 @@ namespace ble_peripheral
         GattServiceProvider obj = nullptr;
         winrt::event_token advertisement_status_changed_token;
         GattServiceProviderAdvertisementStatus lastStatus;
-        std::map<std::string, GattCharacteristicObject> characteristics;
+        std::map<std::string, GattCharacteristicObject *> characteristics;
     };
 
     class BlePeripheralPlugin : public flutter::Plugin, public BlePeripheralChannel
@@ -93,6 +94,7 @@ namespace ble_peripheral
         void Radio_StateChanged(Radio radio, IInspectable args);
         RadioState oldRadioState = RadioState::Unknown;
         winrt::event_revoker<IRadio> radioStateChangedRevoker;
+        std::string GetBluetoothAddressFromClient(GattSubscribedClient client);
 
         void ServiceProvider_AdvertisementStatusChanged(GattServiceProvider const &sender, GattServiceProviderAdvertisementStatusChangedEventArgs const &);
         void SubscribedClientsChanged(GattLocalCharacteristic const &sender, IInspectable const &);

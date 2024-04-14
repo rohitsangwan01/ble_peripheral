@@ -55,9 +55,11 @@ class BleCallbackHandler extends BleCallback {
   }
 
   @override
-  WriteRequestResult? onWriteRequest(String deviceId, String characteristicId,
-          int offset, Uint8List? value) =>
-      writeRequest?.call(deviceId, characteristicId, offset, value);
+  WriteRequestResult? onWriteRequest(
+      String deviceId, String characteristicId, int offset, Uint8List? value) {
+    return writeRequest?.call(deviceId, characteristicId, offset, value) ??
+        WriteRequestResult();
+  }
 
   @override
   void onMtuChange(String deviceId, int mtu) =>

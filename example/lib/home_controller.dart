@@ -64,8 +64,11 @@ class HomeController extends GetxController {
     BlePeripheral.setBleCentralAvailabilityCallback((deviceId, isAvailable) {
       Get.log("OnDeviceAvailabilityChange: $deviceId : $isAvailable");
       if (isAvailable) {
-        if (!devices.any((element) => element != deviceId)) {
+        if (!devices.any((element) => element == deviceId)) {
           devices.add(deviceId);
+          Get.log("$deviceId adding");
+        } else {
+          Get.log("$deviceId already exists");
         }
       } else {
         devices.removeWhere((element) => element == deviceId);
@@ -82,7 +85,7 @@ class HomeController extends GetxController {
         (deviceId, characteristicId, offset, value) {
       Get.log("WriteRequest: $deviceId $characteristicId : $offset : $value");
       // return WriteRequestResult(status: 144);
-      return WriteRequestResult();
+      return null;
     });
 
     super.onInit();

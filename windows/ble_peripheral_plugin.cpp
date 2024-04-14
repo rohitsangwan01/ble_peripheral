@@ -209,7 +209,7 @@ namespace ble_peripheral
     {
       // Build Service
       auto characteristics = service.characteristics();
-      auto gattCharacteristicObjList = std::map<std::string, GattCharacteristicObject>();
+      auto gattCharacteristicObjList = std::map<std::string, GattCharacteristicObject *>();
 
       auto serviceProviderResult = co_await GattServiceProvider::CreateAsync(uuid_to_guid(serviceUuid));
       if (serviceProviderResult.Error() != BluetoothError::Success)
@@ -268,14 +268,15 @@ namespace ble_peripheral
         }
         auto gattCharacteristic = characteristicResult.Characteristic();
 
-        auto gattCharacteristicObject = GattCharacteristicObject();
-        gattCharacteristicObject.obj = gattCharacteristic;
+        auto gattCharacteristicObject = new GattCharacteristicObject();
+        gattCharacteristicObject->obj = gattCharacteristic;
+        gattCharacteristicObject->stored_clients = gattCharacteristic.SubscribedClients();
 
-        gattCharacteristicObject.read_requested_token = gattCharacteristic.ReadRequested({this, &BlePeripheralPlugin::ReadRequestedAsync});
-        gattCharacteristicObject.write_requested_token = gattCharacteristic.WriteRequested({this, &BlePeripheralPlugin::WriteRequestedAsync});
-        gattCharacteristicObject.value_changed_token = gattCharacteristic.SubscribedClientsChanged({this, &BlePeripheralPlugin::SubscribedClientsChanged});
+        gattCharacteristicObject->read_requested_token = gattCharacteristic.ReadRequested({this, &BlePeripheralPlugin::ReadRequestedAsync});
+        gattCharacteristicObject->write_requested_token = gattCharacteristic.WriteRequested({this, &BlePeripheralPlugin::WriteRequestedAsync});
+        gattCharacteristicObject->value_changed_token = gattCharacteristic.SubscribedClientsChanged({this, &BlePeripheralPlugin::SubscribedClientsChanged});
 
-        gattCharacteristicObjList.insert_or_assign(characteristicUuid, gattCharacteristicObject);
+        gattCharacteristicObjList.insert_or_assign(guid_to_uuid(gattCharacteristic.Uuid()), gattCharacteristicObject);
         // Build Descriptors
         for (flutter::EncodableValue descriptorEncoded : descriptors)
         {
@@ -380,7 +381,7 @@ namespace ble_peripheral
         else
           gattServiceObject->lastStatus = sender.AdvertisementStatus();
         auto statusStr = AdvertisementStatusToString(sender.AdvertisementStatus());
-        std::cout << "AdvertisingStatusChanged " << serviceUuid << "AdvertisingStatus " << statusStr << " /n " << std::endl;
+        std::cout << "AdvertisingStatusChanged " << serviceUuid << " ,AdvertisingStatus " << statusStr << " /n " << std::endl;
         break;
       }
     }
@@ -404,8 +405,97 @@ namespace ble_peripheral
     }
   }
 
-  void BlePeripheralPlugin::SubscribedClientsChanged(GattLocalCharacteristic const &sender, IInspectable const &)
+  void BlePeripheralPlugin::SubscribedClientsChanged(GattLocalCharacteristic const &localChar, IInspectable const &)
   {
+    auto characteristicId = guid_to_uuid(localChar.Uuid());
+
+    // Find GattCharacteristicObject
+    GattCharacteristicObject *gattCharacteristicObject = nullptr;
+    for (auto const &[key, gattServiceObject] : serviceProviderMap)
+    {
+      for (auto const &[charKey, gattChar] : gattServiceObject->characteristics)
+      {
+        if (charKey == characteristicId)
+        {
+          gattCharacteristicObject = gattChar;
+          break;
+        }
+      }
+    }
+    if (gattCharacteristicObject == nullptr)
+    {
+      std::cout << "Failed to get char " << characteristicId << std::endl;
+      return;
+    }
+
+    // Compare Stored clients and New clients
+    IVectorView<GattSubscribedClient> currentClients = localChar.SubscribedClients();
+    IVectorView<GattSubscribedClient> oldClients = gattCharacteristicObject->stored_clients;
+
+    // Check if any client removed
+    for (unsigned int i = 0; i < oldClients.Size(); ++i)
+    {
+      auto oldClient = oldClients.GetAt(i);
+      bool found = false;
+      for (unsigned int j = 0; j < currentClients.Size(); ++j)
+      {
+        if (currentClients.GetAt(j) == oldClient)
+        {
+          found = true;
+          break;
+        }
+      }
+      if (!found)
+      {
+        // oldClient is not in currentClients, so it was removed
+        std::string deviceIdArg = GetBluetoothAddressFromClient(oldClient);
+        uiThreadHandler_.Post([deviceIdArg, characteristicId]
+                              {
+                                bleCallback->OnCharacteristicSubscriptionChange(
+                                    deviceIdArg, characteristicId, false,
+                                    SuccessCallback, ErrorCallback);
+                                // Notify subscription change
+                              });
+      }
+    }
+
+    // Check if any client added
+    for (unsigned int i = 0; i < currentClients.Size(); ++i)
+    {
+      auto currentClient = currentClients.GetAt(i);
+      bool found = false;
+      for (unsigned int j = 0; j < oldClients.Size(); ++j)
+      {
+        if (oldClients.GetAt(j) == currentClient)
+        {
+          found = true;
+          break;
+        }
+      }
+      if (!found)
+      {
+        // currentClient is not in oldClients, so it was added
+        std::string deviceIdArg = GetBluetoothAddressFromClient(currentClient);
+        uiThreadHandler_.Post([deviceIdArg, characteristicId]
+                              {
+                                bleCallback->OnCharacteristicSubscriptionChange(
+                                    deviceIdArg, characteristicId, true,
+                                    SuccessCallback, ErrorCallback);
+                                // Notify subscription change
+                              });
+
+        int64_t maxPuid = currentClient.Session().MaxPduSize();
+        uiThreadHandler_.Post([deviceIdArg, maxPuid]
+                              {
+                                bleCallback->OnMtuChange(deviceIdArg, maxPuid,
+                                                         SuccessCallback, ErrorCallback);
+                                // Notify added device MTU change
+                              });
+      }
+    }
+
+    // Update stored clients in stored char
+    gattCharacteristicObject->stored_clients = currentClients;
   }
 
   winrt::fire_and_forget BlePeripheralPlugin::ReadRequestedAsync(GattLocalCharacteristic const &localChar, GattReadRequestedEventArgs args)
@@ -532,9 +622,9 @@ namespace ble_peripheral
       // clean resources for characteristics
       for (auto const &[chatKey, gattCharacteristicObject] : gattServiceObject->characteristics)
       {
-        gattCharacteristicObject.obj.ReadRequested(gattCharacteristicObject.read_requested_token);
-        gattCharacteristicObject.obj.WriteRequested(gattCharacteristicObject.write_requested_token);
-        gattCharacteristicObject.obj.SubscribedClientsChanged(gattCharacteristicObject.value_changed_token);
+        gattCharacteristicObject->obj.ReadRequested(gattCharacteristicObject->read_requested_token);
+        gattCharacteristicObject->obj.WriteRequested(gattCharacteristicObject->write_requested_token);
+        gattCharacteristicObject->obj.SubscribedClientsChanged(gattCharacteristicObject->value_changed_token);
       }
     }
     catch (const winrt::hresult_error &e)
@@ -626,4 +716,17 @@ namespace ble_peripheral
       return "Unknown";
     }
   }
+
+  std::string BlePeripheralPlugin::GetBluetoothAddressFromClient(GattSubscribedClient client)
+  {
+    hstring clientId = client.Session().DeviceId().Id();
+    std::string deviceIdString = winrt::to_string(clientId);
+    size_t pos = deviceIdString.find_last_of('-');
+    if (pos != std::string::npos)
+    {
+      return deviceIdString.substr(pos + 1);
+    }
+    return deviceIdString;
+  }
+
 } // namespace ble_peripheral
