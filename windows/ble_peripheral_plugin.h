@@ -16,6 +16,7 @@
 #include <memory>
 #include "BlePeripheral.g.h"
 #include "Utils.h"
+#include "ui_thread_handler.hpp"
 
 namespace ble_peripheral
 {
@@ -43,12 +44,28 @@ namespace ble_peripheral
         none = 4,
     };
 
+    struct GattCharacteristicObject
+    {
+        GattLocalCharacteristic obj = nullptr;
+        winrt::event_token value_changed_token;
+        winrt::event_token read_requested_token;
+        winrt::event_token write_requested_token;
+    };
+
+    struct GattServiceProviderObject
+    {
+        GattServiceProvider obj = nullptr;
+        winrt::event_token advertisement_status_changed_token;
+        GattServiceProviderAdvertisementStatus lastStatus;
+        std::map<std::string, GattCharacteristicObject> characteristics;
+    };
+
     class BlePeripheralPlugin : public flutter::Plugin, public BlePeripheralChannel
     {
     public:
         static void RegisterWithRegistrar(flutter::PluginRegistrarWindows *registrar);
 
-        BlePeripheralPlugin();
+        BlePeripheralPlugin(flutter::PluginRegistrarWindows *registrar);
 
         ~BlePeripheralPlugin();
 
@@ -62,16 +79,25 @@ namespace ble_peripheral
         BlePeripheralPlugin(const BlePeripheralPlugin &) = delete;
         BlePeripheralPlugin &operator=(const BlePeripheralPlugin &) = delete;
 
+        BlePeripheralUiThreadHandler uiThreadHandler_;
+
         // BluetoothLe
         Radio bluetoothRadio{nullptr};
-        bool advertising{false};
-        winrt::event_token status_changed_token;
 
         winrt::fire_and_forget InitializeAdapter();
-
         winrt::fire_and_forget AddServiceAsync(const BleService &service);
         GattCharacteristicProperties toGattCharacteristicProperties(int property);
         BlePermission toBlePermission(int permission);
+        std::string AdvertisementStatusToString(GattServiceProviderAdvertisementStatus status);
+        void disposeGattServiceObject(GattServiceProviderObject *gattServiceObject);
+        void Radio_StateChanged(Radio radio, IInspectable args);
+        RadioState oldRadioState = RadioState::Unknown;
+        winrt::event_revoker<IRadio> radioStateChangedRevoker;
+
+        void ServiceProvider_AdvertisementStatusChanged(GattServiceProvider const &sender, GattServiceProviderAdvertisementStatusChangedEventArgs const &);
+        void SubscribedClientsChanged(GattLocalCharacteristic const &sender, IInspectable const &);
+        winrt::fire_and_forget ReadRequestedAsync(GattLocalCharacteristic const &, GattReadRequestedEventArgs args);
+        winrt::fire_and_forget WriteRequestedAsync(GattLocalCharacteristic const &, GattWriteRequestedEventArgs args);
 
         // BlePeripheralChannel
         std::optional<FlutterError> Initialize();

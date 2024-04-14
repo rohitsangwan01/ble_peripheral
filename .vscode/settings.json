@@ -89,8 +89,10 @@
     "regex": "cpp"
   },
   "cSpell.words": [
+    "bytevc",
     "hresult",
     "hstring",
+    "Inspectable",
     "INVALIDARG",
     "rohit",
     "winrt"

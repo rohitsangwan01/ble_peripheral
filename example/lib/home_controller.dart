@@ -97,6 +97,7 @@ class HomeController extends GetxController {
   }
 
   void startAdvertising() async {
+    Get.log("Starting Advertising");
     await BlePeripheral.startAdvertising(
       services: [serviceBattery, serviceTest],
       localName: deviceName,

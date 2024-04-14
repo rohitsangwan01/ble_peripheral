@@ -38,6 +38,7 @@ list(APPEND PLUGIN_SOURCES
   "BlePeripheral.g.h"
   "ble_peripheral_plugin.cpp"
   "ble_peripheral_plugin.h"
+  "ui_thread_handler.hpp"
 )
 
 add_library(${PLUGIN_NAME} SHARED

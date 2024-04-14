@@ -18,25 +18,41 @@ namespace ble_peripheral
   using ble_peripheral::BlePeripheralChannel;
   using ble_peripheral::ErrorOr;
   std::unique_ptr<BleCallback> bleCallback;
-  std::vector<BleService> bleAddedServices = {};
+  std::map<std::string, GattServiceProviderObject *> serviceProviderMap;
 
   // static
   void BlePeripheralPlugin::RegisterWithRegistrar(flutter::PluginRegistrarWindows *registrar)
   {
-    auto plugin = std::make_unique<BlePeripheralPlugin>();
+    auto plugin = std::make_unique<BlePeripheralPlugin>(registrar);
     BlePeripheralChannel::SetUp(registrar->messenger(), plugin.get());
     bleCallback = std::make_unique<BleCallback>(registrar->messenger());
     registrar->AddPlugin(std::move(plugin));
   }
 
-  BlePeripheralPlugin::BlePeripheralPlugin() {}
+  BlePeripheralPlugin::BlePeripheralPlugin(flutter::PluginRegistrarWindows *registrar) : uiThreadHandler_(registrar) {}
 
   BlePeripheralPlugin::~BlePeripheralPlugin() {}
 
   winrt::fire_and_forget BlePeripheralPlugin::InitializeAdapter()
   {
-    auto bluetoothAdapter = co_await BluetoothAdapter::GetDefaultAsync();
-    bluetoothRadio = co_await bluetoothAdapter.GetRadioAsync();
+    auto radios = co_await Radio::GetRadiosAsync();
+    for (auto &&radio : radios)
+    {
+      if (radio.Kind() == RadioKind::Bluetooth)
+      {
+        bluetoothRadio = radio;
+        radioStateChangedRevoker = bluetoothRadio.StateChanged(winrt::auto_revoke, {this, &BlePeripheralPlugin::Radio_StateChanged});
+        bool isOn = bluetoothRadio.State() == RadioState::On;
+        uiThreadHandler_.Post([isOn]
+                              { bleCallback->OnBleStateChange(isOn, SuccessCallback, ErrorCallback); });
+
+        break;
+      }
+    }
+    if (!bluetoothRadio)
+    {
+      std::cout << "Bluetooth is not available" << std::endl;
+    }
   }
 
   std::optional<FlutterError> BlePeripheralPlugin::Initialize()
@@ -47,17 +63,31 @@ namespace ble_peripheral
 
   ErrorOr<std::optional<bool>> BlePeripheralPlugin::IsAdvertising()
   {
+    // Check is any service is advertising, or if services list is empty
+    // Get serviceProviderMap length
+    if (serviceProviderMap.size() == 0)
+      return ErrorOr<std::optional<bool>>(std::optional<bool>(false));
+
+    bool advertising = true;
+    for (auto const &[key, gattServiceObject] : serviceProviderMap)
+    {
+      if (gattServiceObject->lastStatus != GattServiceProviderAdvertisementStatus::Started)
+      {
+        advertising = false;
+        break;
+      }
+    }
     return ErrorOr<std::optional<bool>>(std::optional<bool>(advertising));
   };
 
   ErrorOr<bool> BlePeripheralPlugin::IsSupported()
   {
-    return true;
+    return bluetoothRadio != nullptr;
   };
 
   ErrorOr<bool> BlePeripheralPlugin::AskBlePermission()
   {
-    std::cout << "AskBlePermission called" << std::endl;
+    // No need to ask permission on Windows
     return true;
   };
 
@@ -69,20 +99,42 @@ namespace ble_peripheral
 
   std::optional<FlutterError> BlePeripheralPlugin::RemoveService(const std::string &service_id)
   {
-    std::cout << "RemoveService called" << std::endl;
+    // lower case the service_id
+    std::string serviceId = service_id;
+    std::transform(serviceId.begin(), serviceId.end(), serviceId.begin(),
+                   [](unsigned char c) -> char
+                   { return static_cast<char>(std::tolower(c)); });
+
+    if (serviceProviderMap.find(serviceId) == serviceProviderMap.end())
+    {
+      std::cout << "Service not found in map" << std::endl;
+      return FlutterError("Service not found");
+    }
+    auto gattServiceObject = serviceProviderMap[serviceId];
+    disposeGattServiceObject(gattServiceObject);
+    serviceProviderMap.erase(serviceId);
     return std::nullopt;
   }
 
   std::optional<FlutterError> BlePeripheralPlugin::ClearServices()
   {
-    std::cout << "ClearServices called" << std::endl;
+    for (auto const &[key, gattServiceObject] : serviceProviderMap)
+    {
+      disposeGattServiceObject(gattServiceObject);
+    }
+    // Clear map
+    serviceProviderMap.clear();
     return std::nullopt;
   }
 
   ErrorOr<flutter::EncodableList> BlePeripheralPlugin::GetServices()
   {
-    std::cout << "GetServices called" << std::endl;
-    return ErrorOr<flutter::EncodableList>(flutter::EncodableList());
+    flutter::EncodableList services = flutter::EncodableList();
+    for (auto const &[key, gattServiceObject] : serviceProviderMap)
+    {
+      services.push_back(flutter::EncodableValue(key));
+    }
+    return services;
   }
 
   std::optional<FlutterError> BlePeripheralPlugin::StartAdvertising(
@@ -94,36 +146,24 @@ namespace ble_peripheral
   {
     try
     {
-      std::cout << "StartAdvertising called" << std::endl;
+      // check if services are empty
+      if (serviceProviderMap.size() == 0)
+        return FlutterError("No services added to advertise");
 
       auto advertisementParameter = GattServiceProviderAdvertisingParameters();
       advertisementParameter.IsDiscoverable(true);
       advertisementParameter.IsConnectable(true);
 
-      for (BleService service : bleAddedServices)
+      for (auto const &[key, gattServiceObject] : serviceProviderMap)
       {
-        auto serviceUuid = service.uuid();
-        auto serviceProviderResult = async_get(GattServiceProvider::CreateAsync(uuid_to_guid(serviceUuid)));
-        auto serviceProvider = serviceProviderResult.ServiceProvider();
-        std::cout << "Adding service " << serviceUuid << std::endl;
-        serviceProvider.AdvertisementStatusChanged([this, serviceUuid](auto &&, auto &&)
-                                                   { std::cout << "AdvertisingStatusChanged " << serviceUuid << std::endl; });
-
-        serviceProvider.StartAdvertising(advertisementParameter);
+        if (gattServiceObject->obj.AdvertisementStatus() == GattServiceProviderAdvertisementStatus::Started)
+        {
+          std::cout << "Service " << key << " is already advertising, skipping" << std::endl;
+          continue;
+        }
+        gattServiceObject->obj.StartAdvertising(advertisementParameter);
       }
 
-      advertising = true;
-      std::cout << "StartAdvertising called" << std::endl;
-      return std::nullopt;
-    }
-    catch (const winrt::hresult_error &e)
-    {
-      std::wcerr << "Failed with error: Code: " << e.code() << "Message: " << e.message().c_str() << std::endl;
-      return std::nullopt;
-    }
-    catch (const std::exception &e)
-    {
-      std::cout << "Error: " << e.what() << std::endl;
       return std::nullopt;
     }
     catch (...)
@@ -136,9 +176,19 @@ namespace ble_peripheral
 
   std::optional<FlutterError> BlePeripheralPlugin::StopAdvertising()
   {
+    for (auto const &[key, gattServiceObject] : serviceProviderMap)
+    {
+      if (gattServiceObject->obj.AdvertisementStatus() != GattServiceProviderAdvertisementStatus::Started)
+      {
+        std::cout << "Service " << key << " is not advertising, skipping" << std::endl;
+        continue;
+      }
+      gattServiceObject->obj.StopAdvertising();
+    }
 
-    std::cout << "StopAdvertising called" << std::endl;
-    advertising = false;
+    uiThreadHandler_.Post([]
+                          { bleCallback->OnAdvertisingStatusUpdate(false, nullptr, SuccessCallback, ErrorCallback); });
+
     return std::nullopt;
   }
 
@@ -158,8 +208,8 @@ namespace ble_peripheral
     try
     {
       // Build Service
-      std::cout << "Adding service " << serviceUuid << std::endl;
       auto characteristics = service.characteristics();
+      auto gattCharacteristicObjList = std::map<std::string, GattCharacteristicObject>();
 
       auto serviceProviderResult = co_await GattServiceProvider::CreateAsync(uuid_to_guid(serviceUuid));
       if (serviceProviderResult.Error() != BluetoothError::Success)
@@ -168,7 +218,8 @@ namespace ble_peripheral
         bleCallback->OnServiceAdded(serviceUuid, err, SuccessCallback, ErrorCallback);
         co_return;
       }
-      auto serviceProvider = serviceProviderResult.ServiceProvider();
+
+      GattServiceProvider serviceProvider = serviceProviderResult.ServiceProvider();
 
       // Build Characteristic
       for (auto characteristicEncoded : characteristics)
@@ -217,6 +268,14 @@ namespace ble_peripheral
         }
         auto gattCharacteristic = characteristicResult.Characteristic();
 
+        auto gattCharacteristicObject = GattCharacteristicObject();
+        gattCharacteristicObject.obj = gattCharacteristic;
+
+        gattCharacteristicObject.read_requested_token = gattCharacteristic.ReadRequested({this, &BlePeripheralPlugin::ReadRequestedAsync});
+        gattCharacteristicObject.write_requested_token = gattCharacteristic.WriteRequested({this, &BlePeripheralPlugin::WriteRequestedAsync});
+        gattCharacteristicObject.value_changed_token = gattCharacteristic.SubscribedClientsChanged({this, &BlePeripheralPlugin::SubscribedClientsChanged});
+
+        gattCharacteristicObjList.insert_or_assign(characteristicUuid, gattCharacteristicObject);
         // Build Descriptors
         for (flutter::EncodableValue descriptorEncoded : descriptors)
         {
@@ -270,33 +329,244 @@ namespace ble_peripheral
           // }
         }
       }
-      //  bleAddedServices.push_back(service);
 
-      serviceProvider.StartAdvertising(GattServiceProviderAdvertisingParameters());
-      serviceProvider.AdvertisementStatusChanged([this, serviceUuid](auto &&, auto &&)
-                                                 { std::cout << "AdvertisingStatusChanged " << serviceUuid << std::endl; });
-      bleCallback->OnServiceAdded(serviceUuid, nullptr, SuccessCallback, ErrorCallback);
-      std::cout << "Service added" << std::endl;
+      GattServiceProviderObject *gattServiceProviderObject = new GattServiceProviderObject();
+      gattServiceProviderObject->obj = serviceProvider;
+      gattServiceProviderObject->characteristics = gattCharacteristicObjList;
+      gattServiceProviderObject->advertisement_status_changed_token = serviceProvider.AdvertisementStatusChanged({this, &BlePeripheralPlugin::ServiceProvider_AdvertisementStatusChanged});
+      gattServiceProviderObject->lastStatus = serviceProvider.AdvertisementStatus();
+      serviceProviderMap.insert_or_assign(guid_to_uuid(serviceProvider.Service().Uuid()), gattServiceProviderObject);
+
+      uiThreadHandler_.Post([serviceUuid]
+                            { bleCallback->OnServiceAdded(serviceUuid, nullptr, SuccessCallback, ErrorCallback); });
     }
     catch (const winrt::hresult_error &e)
     {
       std::wcerr << "Failed with error: Code: " << e.code() << "Message: " << e.message().c_str() << std::endl;
       std::string errorMessage = winrt::to_string(e.message());
-      bleCallback->OnServiceAdded(serviceUuid, &errorMessage, SuccessCallback, ErrorCallback);
+
+      uiThreadHandler_.Post([serviceUuid, errorMessage]
+                            { bleCallback->OnServiceAdded(serviceUuid, &errorMessage, SuccessCallback, ErrorCallback); });
     }
     catch (const std::exception &e)
     {
       std::cout << "Error: " << e.what() << std::endl;
       std::wstring errorMessage = winrt::to_hstring(e.what()).c_str();
       std::string *err = new std::string(winrt::to_string(errorMessage));
-      bleCallback->OnServiceAdded(serviceUuid, err, SuccessCallback, ErrorCallback);
+      uiThreadHandler_.Post([serviceUuid, err]
+                            { bleCallback->OnServiceAdded(serviceUuid, err, SuccessCallback, ErrorCallback); });
     }
     catch (...)
     {
       std::cout << "Error: Unknown error" << std::endl;
       std::string *err = new std::string(winrt::to_string(L"Unknown error"));
-      bleCallback->OnServiceAdded(serviceUuid, err, SuccessCallback, ErrorCallback);
+      uiThreadHandler_.Post([serviceUuid, err]
+                            { bleCallback->OnServiceAdded(serviceUuid, err, SuccessCallback, ErrorCallback); });
     }
+  }
+
+  /// Handlers
+  void BlePeripheralPlugin::ServiceProvider_AdvertisementStatusChanged(GattServiceProvider const &sender, GattServiceProviderAdvertisementStatusChangedEventArgs const &)
+  {
+    auto serviceUuid = guid_to_uuid(sender.Service().Uuid());
+
+    for (auto const &[key, gattServiceObject] : serviceProviderMap)
+    {
+      // if last state is Created and current is aborted then ignore this
+      if (serviceUuid == key)
+      {
+        if (gattServiceObject->lastStatus == GattServiceProviderAdvertisementStatus::Created && sender.AdvertisementStatus() == GattServiceProviderAdvertisementStatus::Aborted)
+          return;
+        else
+          gattServiceObject->lastStatus = sender.AdvertisementStatus();
+        auto statusStr = AdvertisementStatusToString(sender.AdvertisementStatus());
+        std::cout << "AdvertisingStatusChanged " << serviceUuid << "AdvertisingStatus " << statusStr << " /n " << std::endl;
+        break;
+      }
+    }
+
+    // Check if all services started
+    bool allServicesStarted = true;
+    for (auto const &[key, gattServiceObject] : serviceProviderMap)
+    {
+      if (gattServiceObject->lastStatus != GattServiceProviderAdvertisementStatus::Started)
+      {
+        allServicesStarted = false;
+        break;
+      };
+    }
+
+    // Notify Flutter
+    if (allServicesStarted)
+    {
+      uiThreadHandler_.Post([]
+                            { bleCallback->OnAdvertisingStatusUpdate(true, nullptr, SuccessCallback, ErrorCallback); });
+    }
+  }
+
+  void BlePeripheralPlugin::SubscribedClientsChanged(GattLocalCharacteristic const &sender, IInspectable const &)
+  {
+  }
+
+  winrt::fire_and_forget BlePeripheralPlugin::ReadRequestedAsync(GattLocalCharacteristic const &localChar, GattReadRequestedEventArgs args)
+  {
+    auto deferral = args.GetDeferral();
+    auto request = co_await args.GetRequestAsync();
+    if (request == nullptr)
+    {
+      // No access allowed to the device.  Application should indicate this to the user.
+      std::cout << "No access allowed to the device" << std::endl;
+      deferral.Complete();
+      co_return;
+    }
+
+    uiThreadHandler_.Post([localChar, request, deferral]
+                          {
+                          auto characteristicId = guid_to_uuid(localChar.Uuid());
+                          auto deviceId = ""; // FIXME: Device id is not available
+                          int64_t offset = request.Offset();
+                          // FIXME: static value is always empty
+                          IBuffer charValue = localChar.StaticValue();
+                          std::vector<uint8_t> *value_arg = nullptr;
+                          if (charValue != nullptr)
+                          {
+                            auto bytevc = to_bytevc(charValue);
+                            value_arg = &bytevc;
+                          }
+                          bleCallback->OnReadRequest(
+                                deviceId,characteristicId, offset,value_arg,
+                                // SuccessCallback,
+                                [deferral, request, localChar](const ReadRequestResult *readResult)
+                                {
+                                  if (readResult == nullptr)
+                                  {
+                                    std::cout << "ReadRequestResult is null" << std::endl;
+                                    request.RespondWithProtocolError(GattProtocolError::InvalidHandle());
+                                  }
+                                  else
+                                  {
+                                    // FIXME: use offset as well
+                                    std::vector<uint8_t> resultVal = readResult->value();
+                                    IBuffer result = from_bytevc(resultVal);
+
+                                    // Send response
+                                    DataWriter writer;
+                                    writer.ByteOrder(ByteOrder::LittleEndian);
+                                    writer.WriteBuffer(result);
+                                    request.RespondWithValue(writer.DetachBuffer());
+                                  }
+                                  deferral.Complete();
+                                },
+                                // ErrorCallback
+                                [deferral](const FlutterError &error)
+                                {
+                                  std::cout << "ErrorCallback: " << error.message() << std::endl;
+                                  deferral.Complete();
+                                }); });
+  }
+
+  winrt::fire_and_forget BlePeripheralPlugin::WriteRequestedAsync(GattLocalCharacteristic const &localChar, GattWriteRequestedEventArgs args)
+  {
+    auto deferral = args.GetDeferral();
+    GattWriteRequest request = co_await args.GetRequestAsync();
+    if (request == nullptr)
+    {
+      std::cout << "No access allowed to the device" << std::endl;
+      deferral.Complete();
+      co_return;
+    }
+
+    uiThreadHandler_.Post([localChar, request, deferral]
+                          {
+                            auto characteristicId = guid_to_uuid(localChar.Uuid());
+                            auto deviceId = ""; // FIXME: Device id is not available
+                            int64_t offset = request.Offset();
+                            auto bytevc = to_bytevc(request.Value());
+                            std::vector<uint8_t> *value_arg = &bytevc;
+                            bleCallback->OnWriteRequest(
+                                deviceId, characteristicId, offset, value_arg,
+                                // SuccessCallback
+                                [deferral, request, localChar](const WriteRequestResult *writeResult)
+                                {
+                                  std::cout << "Got success response" << std::endl;
+                                  if (writeResult == nullptr)
+                                  {
+                                    // Respond successfully
+                                    std::cout << "Responding to write request" << std::endl;
+                                    request.Respond();
+                                  }
+                                  else if (writeResult->status() != nullptr)
+                                  {
+                                    // respond with error, FIXME: parse proper error
+                                    request.RespondWithProtocolError(GattProtocolError::InvalidHandle());
+                                  }
+                                  else
+                                  {
+                                    // Respond successfully
+                                    request.Respond();
+                                  }
+                                  deferral.Complete();
+                                },
+                                // ErrorCallback
+                                [deferral](const FlutterError &error)
+                                {
+                                  std::cout << "ErrorCallback: " << error.message() << std::endl;
+                                  deferral.Complete();
+                                }); });
+  }
+
+  void BlePeripheralPlugin::disposeGattServiceObject(GattServiceProviderObject *gattServiceObject)
+  {
+    try
+    {
+      auto serviceId = guid_to_uuid(gattServiceObject->obj.Service().Uuid());
+      // check if serviceMap have this uuid
+      if (serviceProviderMap.find(serviceId) == serviceProviderMap.end())
+      {
+        std::cout << "Service not found in map" << std::endl;
+        return;
+      }
+      std::cout << "Cleaning service: " << serviceId << std::endl;
+      // clean resources for this service
+      gattServiceObject->obj.AdvertisementStatusChanged(gattServiceObject->advertisement_status_changed_token);
+
+      // Stop advertising if started
+      if (gattServiceObject->obj.AdvertisementStatus() == GattServiceProviderAdvertisementStatus::Started)
+      {
+        gattServiceObject->obj.StopAdvertising();
+      };
+
+      // clean resources for characteristics
+      for (auto const &[chatKey, gattCharacteristicObject] : gattServiceObject->characteristics)
+      {
+        gattCharacteristicObject.obj.ReadRequested(gattCharacteristicObject.read_requested_token);
+        gattCharacteristicObject.obj.WriteRequested(gattCharacteristicObject.write_requested_token);
+        gattCharacteristicObject.obj.SubscribedClientsChanged(gattCharacteristicObject.value_changed_token);
+      }
+    }
+    catch (const winrt::hresult_error &e)
+    {
+      std::wcerr << "Failed with error: Code: " << e.code() << "Message: " << e.message().c_str() << std::endl;
+    }
+    catch (const std::exception &e)
+    {
+      std::cout << "Error: " << e.what() << std::endl;
+    }
+    catch (...)
+    {
+      std::cout << "Error: Unknown error" << std::endl;
+    }
+  }
+
+  void BlePeripheralPlugin::Radio_StateChanged(Radio radio, IInspectable args)
+  {
+    auto radioState = !radio ? RadioState::Disabled : radio.State();
+    if (oldRadioState == radioState)
+    {
+      return;
+    }
+    oldRadioState = radioState;
+    bleCallback->OnBleStateChange(radioState == RadioState::On, SuccessCallback, ErrorCallback);
   }
 
   GattCharacteristicProperties BlePeripheralPlugin::toGattCharacteristicProperties(int property)
@@ -328,7 +598,6 @@ namespace ble_peripheral
     }
   }
 
-  // Check if these permissions are correct
   BlePermission BlePeripheralPlugin::toBlePermission(int permission)
   {
     switch (permission)
@@ -346,4 +615,22 @@ namespace ble_peripheral
     }
   }
 
+  std::string BlePeripheralPlugin::AdvertisementStatusToString(GattServiceProviderAdvertisementStatus status)
+  {
+    switch (status)
+    {
+    case GattServiceProviderAdvertisementStatus::Created:
+      return "Created";
+    case GattServiceProviderAdvertisementStatus::Started:
+      return "Started";
+    case GattServiceProviderAdvertisementStatus::Stopped:
+      return "Stopped";
+    case GattServiceProviderAdvertisementStatus::Aborted:
+      return "Aborted";
+    case GattServiceProviderAdvertisementStatus::StartedWithoutAllAdvertisementData:
+      return "StartedWithoutAllAdvertisementData";
+    default:
+      return "Unknown";
+    }
+  }
 } // namespace ble_peripheral
