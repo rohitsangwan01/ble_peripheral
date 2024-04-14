@@ -46,9 +46,18 @@ class BleCallbackHandler extends BleCallback {
   }
 
   @override
-  ReadRequestResult? onReadRequest(String deviceId, String characteristicId,
-          int offset, Uint8List? value) =>
-      readRequest?.call(deviceId, characteristicId, offset, value);
+  ReadRequestResult? onReadRequest(
+    String deviceId,
+    String characteristicId,
+    int offset,
+    Uint8List? value,
+  ) {
+    // Windows crash if return value is null
+    return readRequest?.call(deviceId, characteristicId, offset, value) ??
+        ReadRequestResult(
+          value: Uint8List.fromList([0]),
+        );
+  }
 
   @override
   void onServiceAdded(String serviceId, String? error) {
