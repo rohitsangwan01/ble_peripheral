@@ -1,3 +1,7 @@
+## 2.2.2
+
+- Fix windows crash if readResponse was null
+
 ## 2.2.1
 
 - Fix windows crash if no manufacturer data was provided
