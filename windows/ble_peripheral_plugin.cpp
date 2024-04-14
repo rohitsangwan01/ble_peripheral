@@ -19,6 +19,7 @@ namespace ble_peripheral
   using ble_peripheral::ErrorOr;
   std::unique_ptr<BleCallback> bleCallback;
   std::map<std::string, GattServiceProviderObject *> serviceProviderMap;
+  std::map<std::string, IBuffer> descriptorCache = {};
 
   // static
   void BlePeripheralPlugin::RegisterWithRegistrar(flutter::PluginRegistrarWindows *registrar)
@@ -320,22 +321,18 @@ namespace ble_peripheral
             std::wcerr << "Failed to create Descriptor Provider: " << std::endl;
             co_return;
           }
-          auto gattDescriptor = descriptorResult.Descriptor();
+          GattLocalDescriptor gattDescriptor = descriptorResult.Descriptor();
 
-          // Add descriptor value: FIXME
-          // auto descriptorValue = descriptor.value();
-          // if (descriptorValue != nullptr)
-          // {
-          //   auto writer = DataWriter();
-          //   winrt::array_view<const uint8_t> view(descriptorValue->data(), descriptorValue->data() + descriptorValue->size());
-          //   writer.WriteBytes(view);
-          //   auto descriptorValueResult = co_await gattDescriptor.WriteValueAsync(writer.DetachBuffer());
-          //   if (descriptorValueResult.Status() != GattCommunicationStatus::Success)
-          //   {
-          //     std::wcerr << "Failed to write descriptor value: " << std::endl;
-          //     co_return;
-          //   }
-          // }
+          const std::vector<uint8_t> *descriptorValue = descriptor.value();
+          if (descriptorValue != nullptr)
+          {
+            auto descriptorBytes = from_bytevc(*descriptorValue);
+            auto descriptorGuid = guid_to_uuid(gattDescriptor.Uuid());
+            descriptorCache.insert_or_assign(descriptorGuid, descriptorBytes);
+
+            gattDescriptor.ReadRequested({this, &BlePeripheralPlugin::DescriptorReadRequestedAsync});
+            gattDescriptor.WriteRequested({this, &BlePeripheralPlugin::DescriptorWriteRequestedAsync});
+          }
         }
       }
 
@@ -375,6 +372,8 @@ namespace ble_peripheral
   }
 
   /// Handlers
+
+  /// Advertisements Listener
   void BlePeripheralPlugin::ServiceProvider_AdvertisementStatusChanged(GattServiceProvider const &sender, GattServiceProviderAdvertisementStatusChangedEventArgs const &)
   {
     auto serviceUuid = guid_to_uuid(sender.Service().Uuid());
@@ -413,6 +412,7 @@ namespace ble_peripheral
     }
   }
 
+  /// Characteristic Listeners
   void BlePeripheralPlugin::SubscribedClientsChanged(GattLocalCharacteristic const &localChar, IInspectable const &)
   {
     auto characteristicId = guid_to_uuid(localChar.Uuid());
@@ -597,6 +597,40 @@ namespace ble_peripheral
 
                             // Write Request
                           });
+  }
+
+  /// Descriptor Listeners
+  winrt::fire_and_forget BlePeripheralPlugin::DescriptorReadRequestedAsync(GattLocalDescriptor const &sender, GattReadRequestedEventArgs args)
+  {
+    auto deferral = args.GetDeferral();
+    GattReadRequest request = co_await args.GetRequestAsync();
+    if (request == nullptr)
+    {
+      std::cout << "No access allowed to the device" << std::endl;
+      deferral.Complete();
+      co_return;
+    }
+    auto descriptorId = guid_to_uuid(sender.Uuid());
+    if (descriptorCache.find(descriptorId) != descriptorCache.end())
+    {
+      IBuffer bytes = descriptorCache[descriptorId];
+      DataWriter writer;
+      writer.ByteOrder(ByteOrder::LittleEndian);
+      writer.WriteBuffer(bytes);
+      request.RespondWithValue(writer.DetachBuffer());
+    }
+    else
+    {
+      // Handle case if no cache available
+      std::cout << "No descriptor value was provided to read: " << descriptorId << std::endl;
+    }
+    deferral.Close();
+  }
+
+  void BlePeripheralPlugin::DescriptorWriteRequestedAsync(GattLocalDescriptor const &sender, GattWriteRequestedEventArgs args)
+  {
+    auto descriptorId = guid_to_uuid(sender.Uuid());
+    std::cout << "Descriptor Write request received: " << descriptorId << std::endl;
   }
 
   void BlePeripheralPlugin::disposeGattServiceObject(GattServiceProviderObject *gattServiceObject)

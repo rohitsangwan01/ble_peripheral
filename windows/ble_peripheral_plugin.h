@@ -102,6 +102,8 @@ namespace ble_peripheral
         void SubscribedClientsChanged(GattLocalCharacteristic const &sender, IInspectable const &);
         winrt::fire_and_forget ReadRequestedAsync(GattLocalCharacteristic const &, GattReadRequestedEventArgs args);
         winrt::fire_and_forget WriteRequestedAsync(GattLocalCharacteristic const &, GattWriteRequestedEventArgs args);
+         winrt::fire_and_forget DescriptorReadRequestedAsync(GattLocalDescriptor const &sender, GattReadRequestedEventArgs args);
+        void DescriptorWriteRequestedAsync(GattLocalDescriptor const &sender, GattWriteRequestedEventArgs args);
 
         // BlePeripheralChannel
         std::optional<FlutterError> Initialize();
