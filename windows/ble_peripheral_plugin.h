@@ -44,6 +44,13 @@ namespace ble_peripheral
         none = 4,
     };
 
+    struct GattDescriptorObject
+    {
+        GattLocalDescriptor obj = nullptr;
+        winrt::event_token read_requested_token;
+        winrt::event_token write_requested_token;
+    };
+
     struct GattCharacteristicObject
     {
         GattLocalCharacteristic obj = nullptr;
@@ -51,6 +58,7 @@ namespace ble_peripheral
         winrt::event_token value_changed_token;
         winrt::event_token read_requested_token;
         winrt::event_token write_requested_token;
+        std::map<std::string, GattDescriptorObject *> descriptor_tokens;
     };
 
     struct GattServiceProviderObject
@@ -102,7 +110,7 @@ namespace ble_peripheral
         void SubscribedClientsChanged(GattLocalCharacteristic const &sender, IInspectable const &);
         winrt::fire_and_forget ReadRequestedAsync(GattLocalCharacteristic const &, GattReadRequestedEventArgs args);
         winrt::fire_and_forget WriteRequestedAsync(GattLocalCharacteristic const &, GattWriteRequestedEventArgs args);
-         winrt::fire_and_forget DescriptorReadRequestedAsync(GattLocalDescriptor const &sender, GattReadRequestedEventArgs args);
+        winrt::fire_and_forget DescriptorReadRequestedAsync(GattLocalDescriptor const &sender, GattReadRequestedEventArgs args);
         void DescriptorWriteRequestedAsync(GattLocalDescriptor const &sender, GattWriteRequestedEventArgs args);
 
         // BlePeripheralChannel

@@ -285,7 +285,6 @@ namespace ble_peripheral
         gattCharacteristicObject->write_requested_token = gattCharacteristic.WriteRequested({this, &BlePeripheralPlugin::WriteRequestedAsync});
         gattCharacteristicObject->value_changed_token = gattCharacteristic.SubscribedClientsChanged({this, &BlePeripheralPlugin::SubscribedClientsChanged});
 
-        gattCharacteristicObjList.insert_or_assign(guid_to_uuid(gattCharacteristic.Uuid()), gattCharacteristicObject);
         // Build Descriptors
         for (flutter::EncodableValue descriptorEncoded : descriptors)
         {
@@ -330,10 +329,15 @@ namespace ble_peripheral
             auto descriptorGuid = guid_to_uuid(gattDescriptor.Uuid());
             descriptorCache.insert_or_assign(descriptorGuid, descriptorBytes);
 
-            gattDescriptor.ReadRequested({this, &BlePeripheralPlugin::DescriptorReadRequestedAsync});
-            gattDescriptor.WriteRequested({this, &BlePeripheralPlugin::DescriptorWriteRequestedAsync});
+            // Store gattDescriptorObject
+            auto gattDescriptorObject = new GattDescriptorObject();
+            gattDescriptorObject->read_requested_token = gattDescriptor.ReadRequested({this, &BlePeripheralPlugin::DescriptorReadRequestedAsync});
+            gattDescriptorObject->write_requested_token = gattDescriptor.WriteRequested({this, &BlePeripheralPlugin::DescriptorWriteRequestedAsync});
+            gattCharacteristicObject->descriptor_tokens.insert_or_assign(descriptorGuid, gattDescriptorObject);
           }
         }
+
+        gattCharacteristicObjList.insert_or_assign(guid_to_uuid(gattCharacteristic.Uuid()), gattCharacteristicObject);
       }
 
       GattServiceProviderObject *gattServiceProviderObject = new GattServiceProviderObject();
@@ -660,15 +664,14 @@ namespace ble_peripheral
         gattCharacteristicObject->obj.ReadRequested(gattCharacteristicObject->read_requested_token);
         gattCharacteristicObject->obj.WriteRequested(gattCharacteristicObject->write_requested_token);
         gattCharacteristicObject->obj.SubscribedClientsChanged(gattCharacteristicObject->value_changed_token);
+
+        // FIXME: Dispose descriptor tokens
+        // for (auto const &[descKey, gattDescriptorObj] : gattCharacteristicObject->descriptor_tokens)
+        //{
+        //  gattDescriptorObj->obj.ReadRequested(gattDescriptorObj->read_requested_token);
+        //  gattDescriptorObj->obj.WriteRequested(gattDescriptorObj->write_requested_token);
+        //}
       }
-    }
-    catch (const winrt::hresult_error &e)
-    {
-      std::wcerr << "Failed with error: Code: " << e.code() << "Message: " << e.message().c_str() << std::endl;
-    }
-    catch (const std::exception &e)
-    {
-      std::cout << "Error: " << e.what() << std::endl;
     }
     catch (...)
     {
