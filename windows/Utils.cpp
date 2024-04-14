@@ -118,6 +118,14 @@ namespace ble_peripheral
         return ss.str();
     }
 
+    std::string to_lower_case(std::string str)
+    {
+        std::transform(str.begin(), str.end(), str.begin(),
+                       [](unsigned char c) -> char
+                       { return static_cast<char>(std::tolower(c)); });
+        return str;
+    }
+
     std::string to_uuidstr(winrt::guid guid)
     {
         char chars[36 + 1];

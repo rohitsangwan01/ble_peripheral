@@ -197,7 +197,15 @@ namespace ble_peripheral
       const std::string &characteristic_id,
       const std::vector<uint8_t> &value)
   {
-    std::cout << "UpdateCharacteristic called" << std::endl;
+    GattCharacteristicObject *gattCharacteristicObject = FindGattCharacteristicObject(characteristic_id);
+    if (gattCharacteristicObject == nullptr)
+      return FlutterError("Failed to get this characteristic");
+
+    IBuffer bytes = from_bytevc(value);
+    DataWriter writer;
+    writer.ByteOrder(ByteOrder::LittleEndian);
+    writer.WriteBuffer(bytes);
+    gattCharacteristicObject->obj.NotifyValueAsync(writer.DetachBuffer());
     return std::nullopt;
   }
 
@@ -410,18 +418,8 @@ namespace ble_peripheral
     auto characteristicId = guid_to_uuid(localChar.Uuid());
 
     // Find GattCharacteristicObject
-    GattCharacteristicObject *gattCharacteristicObject = nullptr;
-    for (auto const &[key, gattServiceObject] : serviceProviderMap)
-    {
-      for (auto const &[charKey, gattChar] : gattServiceObject->characteristics)
-      {
-        if (charKey == characteristicId)
-        {
-          gattCharacteristicObject = gattChar;
-          break;
-        }
-      }
-    }
+    GattCharacteristicObject *gattCharacteristicObject = FindGattCharacteristicObject(characteristicId);
+
     if (gattCharacteristicObject == nullptr)
     {
       std::cout << "Failed to get char " << characteristicId << std::endl;
@@ -448,7 +446,7 @@ namespace ble_peripheral
       if (!found)
       {
         // oldClient is not in currentClients, so it was removed
-        std::string deviceIdArg = GetBluetoothAddressFromClient(oldClient);
+        std::string deviceIdArg = ParseBluetoothClientId(oldClient.Session().DeviceId().Id());
         uiThreadHandler_.Post([deviceIdArg, characteristicId]
                               {
                                 bleCallback->OnCharacteristicSubscriptionChange(
@@ -475,7 +473,7 @@ namespace ble_peripheral
       if (!found)
       {
         // currentClient is not in oldClients, so it was added
-        std::string deviceIdArg = GetBluetoothAddressFromClient(currentClient);
+        std::string deviceIdArg = ParseBluetoothClientId(currentClient.Session().DeviceId().Id());
         uiThreadHandler_.Post([deviceIdArg, characteristicId]
                               {
                                 bleCallback->OnCharacteristicSubscriptionChange(
@@ -510,10 +508,11 @@ namespace ble_peripheral
       co_return;
     }
 
-    uiThreadHandler_.Post([localChar, request, deferral]
+    std::string deviceId = ParseBluetoothClientId(args.Session().DeviceId().Id());
+
+    uiThreadHandler_.Post([localChar, request, deferral, deviceId]
                           {
                           auto characteristicId = guid_to_uuid(localChar.Uuid());
-                          auto deviceId = ""; // FIXME: Device id is not available
                           int64_t offset = request.Offset();
                           // FIXME: static value is always empty
                           IBuffer charValue = localChar.StaticValue();
@@ -523,6 +522,7 @@ namespace ble_peripheral
                             auto bytevc = to_bytevc(charValue);
                             value_arg = &bytevc;
                           }
+
                           bleCallback->OnReadRequest(
                                 deviceId,characteristicId, offset,value_arg,
                                 // SuccessCallback,
@@ -566,10 +566,11 @@ namespace ble_peripheral
       co_return;
     }
 
-    uiThreadHandler_.Post([localChar, request, deferral]
+    std::string deviceId = ParseBluetoothClientId(args.Session().DeviceId().Id());
+
+    uiThreadHandler_.Post([localChar, request, deferral, deviceId]
                           {
                             auto characteristicId = guid_to_uuid(localChar.Uuid());
-                            auto deviceId = ""; // FIXME: Device id is not available
                             int64_t offset = request.Offset();
                             auto bytevc = to_bytevc(request.Value());
                             std::vector<uint8_t> *value_arg = &bytevc;
@@ -717,9 +718,8 @@ namespace ble_peripheral
     }
   }
 
-  std::string BlePeripheralPlugin::GetBluetoothAddressFromClient(GattSubscribedClient client)
+  std::string BlePeripheralPlugin::ParseBluetoothClientId(hstring clientId)
   {
-    hstring clientId = client.Session().DeviceId().Id();
     std::string deviceIdString = winrt::to_string(clientId);
     size_t pos = deviceIdString.find_last_of('-');
     if (pos != std::string::npos)
@@ -727,6 +727,21 @@ namespace ble_peripheral
       return deviceIdString.substr(pos + 1);
     }
     return deviceIdString;
+  }
+
+  GattCharacteristicObject *BlePeripheralPlugin::FindGattCharacteristicObject(std::string characteristicId)
+  {
+    // This might return wrong result if multiple services have same characteristic Id
+    std::string loweCaseCharId = to_lower_case(characteristicId);
+    for (auto const &[key, gattServiceObject] : serviceProviderMap)
+    {
+      for (auto const &[charKey, gattChar] : gattServiceObject->characteristics)
+      {
+        if (charKey == loweCaseCharId)
+          return gattChar;
+      }
+    }
+    return nullptr;
   }
 
 } // namespace ble_peripheral

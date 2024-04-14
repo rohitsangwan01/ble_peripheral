@@ -26,6 +26,8 @@ namespace ble_peripheral
     IBuffer from_bytevc(std::vector<uint8_t> bytes);
     std::string to_hexstring(std::vector<uint8_t> bytes);
 
+    std::string to_lower_case(std::string str);
+
     std::string to_uuidstr(winrt::guid guid);
 
     /// To call async functions synchronously

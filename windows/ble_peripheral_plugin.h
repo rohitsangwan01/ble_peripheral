@@ -94,7 +94,9 @@ namespace ble_peripheral
         void Radio_StateChanged(Radio radio, IInspectable args);
         RadioState oldRadioState = RadioState::Unknown;
         winrt::event_revoker<IRadio> radioStateChangedRevoker;
-        std::string GetBluetoothAddressFromClient(GattSubscribedClient client);
+        std::string ParseBluetoothClientId(hstring clientId);
+
+        GattCharacteristicObject *FindGattCharacteristicObject(std::string characteristicId);
 
         void ServiceProvider_AdvertisementStatusChanged(GattServiceProvider const &sender, GattServiceProviderAdvertisementStatusChangedEventArgs const &);
         void SubscribedClientsChanged(GattLocalCharacteristic const &sender, IInspectable const &);
