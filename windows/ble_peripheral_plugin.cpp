@@ -537,7 +537,7 @@ namespace ble_peripheral
                                   if (readResult == nullptr)
                                   {
                                     std::cout << "ReadRequestResult is null" << std::endl;
-                                    request.RespondWithProtocolError(GattProtocolError::InvalidHandle());
+                                    // request.RespondWithProtocolError(GattProtocolError::InvalidHandle());
                                   }
                                   else
                                   {
@@ -589,7 +589,8 @@ namespace ble_peripheral
                                   // respond with error if status is not null,
                                   // FIXME: parse proper error
                                   if (writeResult->status() != nullptr)
-                                    request.RespondWithProtocolError(GattProtocolError::InvalidHandle());
+                                    // request.RespondWithProtocolError(GattProtocolError::InvalidHandle());
+                                    std::cout << "WriteRequestResult should throw error" << std::endl;
                                   else
                                     request.Respond();
                                   deferral.Complete();
