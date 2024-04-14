@@ -1,3 +1,7 @@
+## 2.2.1
+
+- Fix windows crash if no manufacturer data was provided
+
 ## 2.2.0
 
 - Add windows support

@@ -223,8 +223,10 @@ namespace ble_peripheral
       auto serviceProviderResult = co_await GattServiceProvider::CreateAsync(uuid_to_guid(serviceUuid));
       if (serviceProviderResult.Error() != BluetoothError::Success)
       {
-        std::string *err = new std::string(winrt::to_string(L"Failed to create service provider: " + static_cast<int>(serviceProviderResult.Error())));
-        bleCallback->OnServiceAdded(serviceUuid, err, SuccessCallback, ErrorCallback);
+        std::string bleError = ParseBluetoothError(serviceProviderResult.Error());
+        std::string err = "Failed to create service provider: " + serviceUuid + ", errorCode: " + bleError;
+        std::cout << err << std::endl;
+        bleCallback->OnServiceAdded(serviceUuid, &err, SuccessCallback, ErrorCallback);
         co_return;
       }
 
@@ -764,6 +766,35 @@ namespace ble_peripheral
       return deviceIdString.substr(pos + 1);
     }
     return deviceIdString;
+  }
+
+  std::string BlePeripheralPlugin::ParseBluetoothError(BluetoothError error)
+  {
+    switch (error)
+    {
+    case BluetoothError::Success:
+      return "Success";
+    case BluetoothError::RadioNotAvailable:
+      return "RadioNotAvailable";
+    case BluetoothError::ResourceInUse:
+      return "ResourceInUse";
+    case BluetoothError::DeviceNotConnected:
+      return "DeviceNotConnected";
+    case BluetoothError::OtherError:
+      return "OtherError";
+    case BluetoothError::DisabledByPolicy:
+      return "DisabledByPolicy";
+    case BluetoothError::NotSupported:
+      return "NotSupported";
+    case BluetoothError::DisabledByUser:
+      return "DisabledByUser";
+    case BluetoothError::ConsentRequired:
+      return "ConsentRequired";
+    case BluetoothError::TransportNotSupported:
+      return "TransportNotSupported";
+    default:
+      return "Unknown";
+    }
   }
 
   GattCharacteristicObject *BlePeripheralPlugin::FindGattCharacteristicObject(std::string characteristicId)

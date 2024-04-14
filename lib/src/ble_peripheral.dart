@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:ble_peripheral/src/ble_callback_handler.dart';
@@ -83,12 +84,19 @@ class BlePeripheral {
   /// Start advertising with the given services and local name
   /// make sure to add services before calling this method
   static Future<void> startAdvertising({
-    required List<String?> services,
+    required List<String> services,
     required String localName,
     int? timeout,
     ManufacturerData? manufacturerData,
     bool addManufacturerDataInScanResponse = false,
   }) {
+    if (Platform.isWindows && manufacturerData == null) {
+      // Windows crashes on passing null manufacturerData
+      manufacturerData = ManufacturerData(
+        manufacturerId: 0,
+        data: Uint8List(0),
+      );
+    }
     return _channel.startAdvertising(services, localName, timeout,
         manufacturerData, addManufacturerDataInScanResponse);
   }

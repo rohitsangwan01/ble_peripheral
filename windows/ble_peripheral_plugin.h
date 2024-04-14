@@ -112,6 +112,7 @@ namespace ble_peripheral
         winrt::fire_and_forget WriteRequestedAsync(GattLocalCharacteristic const &, GattWriteRequestedEventArgs args);
         winrt::fire_and_forget DescriptorReadRequestedAsync(GattLocalDescriptor const &sender, GattReadRequestedEventArgs args);
         void DescriptorWriteRequestedAsync(GattLocalDescriptor const &sender, GattWriteRequestedEventArgs args);
+        std::string ParseBluetoothError(BluetoothError error);
 
         // BlePeripheralChannel
         std::optional<FlutterError> Initialize();
