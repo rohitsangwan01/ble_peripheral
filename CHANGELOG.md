@@ -1,3 +1,7 @@
+## 2.2.0
+
+- Add windows support
+
 ## 2.1.0
 
 - Add `notifyEncryptionRequired` and `indicateEncryptionRequired` in CharacteristicProperties

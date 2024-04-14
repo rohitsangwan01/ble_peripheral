@@ -12,6 +12,7 @@ enum CharacteristicProperties {
   indicateEncryptionRequired
 }
 
+/// Permissions required to access a characteristic
 enum AttributePermissions {
   readable,
   writeable,

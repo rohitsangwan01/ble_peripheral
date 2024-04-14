@@ -6,6 +6,7 @@ import 'package:ble_peripheral/src/generated/ble_peripheral.g.dart';
 export 'package:ble_peripheral/src/models/ble_enums.dart';
 export 'package:ble_peripheral/src/generated/ble_peripheral.g.dart';
 
+/// [BlePeripheral] is the main class to interact with the BLE peripheral plugin.
 class BlePeripheral {
   static final _channel = BlePeripheralChannel();
   static final _callbackHandler = BleCallbackHandler();
@@ -56,11 +57,14 @@ class BlePeripheral {
     await completer.future;
   }
 
+  /// Remove a service from the peripheral
   static Future<void> removeService(String serviceId) =>
       _channel.removeService(serviceId);
 
+  /// Clear all services from the peripheral
   static Future<void> clearServices() => _channel.clearServices();
 
+  /// Get list of services added to the peripheral
   static Future<List<String>> getServices() async {
     return List<String>.from(
       (await _channel.getServices()).where((e) => e != null).toList(),
@@ -96,23 +100,26 @@ class BlePeripheral {
 
   /// This callback is common for android and Apple, simply tells us when a central device is ready to use
   /// on Android, we gets a device in [setConnectionStateChangeCallback] when a central device is ready to use
-  /// on iOS, we gets a device in [setCharacteristicSubscriptionChangeCallback] when a central device is ready to use
+  /// on Apple and Windows, we gets a device in [setCharacteristicSubscriptionChangeCallback] when a central device is ready to use
   ///
   static void setBleCentralAvailabilityCallback(
           AvailableDevicesListener callback) =>
       _callbackHandler.availableDevicesListener = callback;
 
+  /// Get the callback when advertising is started or stopped
   static void setAdvertisingStatusUpdateCallback(
           AdvertisementStatusUpdateCallback callback) =>
       _callbackHandler.advertingStarted = callback;
 
+  /// Get the callback when bluetooth radio state changes
   static void setBleStateChangeCallback(BleStateCallback callback) =>
       _callbackHandler.bleStateChange = callback;
 
+  /// Get the callback when bond state changes
   static void setBondStateChangeCallback(BondStateCallback callback) =>
       _callbackHandler.bondStateChange = callback;
 
-  /// Only available on iOS/Mac
+  /// Only available on iOS/Mac/Windows
   static void setCharacteristicSubscriptionChangeCallback(
           CharacteristicSubscriptionChangeCallback callback) =>
       _callbackHandler.characteristicSubscriptionChange = callback;
@@ -122,16 +129,19 @@ class BlePeripheral {
           ConnectionStateChangeCallback callback) =>
       _callbackHandler.connectionStateChange = callback;
 
-  /// Only available on Android
+  /// Only available on Android/Windows
   static void setMtuChangeCallback(MtuChangeCallback callback) =>
       _callbackHandler.mtuChangeCallback = callback;
 
+  /// Get the callback when a read request is made
   static void setReadRequestCallback(ReadRequestCallback callback) =>
       _callbackHandler.readRequest = callback;
 
+  /// Get the callback when a service is added
   static void setServiceAddedCallback(ServiceAddedCallback callback) =>
       _callbackHandler.serviceAdded = callback;
 
+  /// Get the callback when a write request is made
   static void setWriteRequestCallback(WriteRequestCallback callback) =>
       _callbackHandler.writeRequest = callback;
 }

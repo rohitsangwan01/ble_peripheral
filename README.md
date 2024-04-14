@@ -6,37 +6,6 @@ Ble peripheral is a Flutter plugin that allows you to use your device as Bluetoo
 
 This is an OS-independent plugin for creating a BLE Generic Attribute Profile (GATT) server to broadcast user-defined services and characteristics. This is particularly useful when prototyping and testing servers on different devices with the goal of ensuring that expected behavior matches across all systems.
 
-## Setup
-
-### Android
-
-Add required bluetooth permissions in your AndroidManifest.xml file:
-
-```xml
-<uses-permission android:name="android.permission.BLUETOOTH" />
-<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-<uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
-<uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
-```
-
-Ask permissions using [permission_handler](https://pub.dev/packages/permission_handler) plugin
-
-### IOS/Macos
-
-Add permission in info.plist
-
-```
-<key>NSBluetoothAlwaysUsageDescription</key>
-<string>For advertise as ble peripheral</string>
-```
-
-For MacOS, make sure to enable bluetooth from xcode
-
-### Windows
-
-Requires [Nuget](https://www.nuget.org/downloads) for Winrt api's
-
 ## Usage
 
 Make sure to initialize first ( You must have required bluetooth permissions to initialize )
@@ -114,7 +83,7 @@ BlePeripheral.setBleCentralAvailabilityCallback((String deviceId,bool isAvailabl
 // Android only, Called when central connected
 BlePeripheral.setConnectionStateChangeCallback(ConnectionStateChangeCallback callback);
 
-// Apple only, Called when central subscribes to a characteristic
+// Apple and Windows only, Called when central subscribes to a characteristic
 BlePeripheral.setCharacteristicSubscriptionChangeCallback(CharacteristicSubscriptionChangeCallback callback);
 ```
 
@@ -136,17 +105,44 @@ BlePeripheral.setWriteRequestCallback(WriteRequestCallback callback);
 // Called when service added successfully
 BlePeripheral.setServiceAddedCallback(ServiceAddedCallback callback);
 
-// Only available on Android, Called when mtu changed
+// Only available on Android and Windows, Called when mtu changed
 BlePeripheral.setMtuChangeCallback(MtuChangeCallback callback);
 
 // Only available on Android, Called when central paired/unpaired
 BlePeripheral.setBondStateChangeCallback(BondStateCallback callback);
 ```
 
-## TODO
+## Setup
 
-Complete windows implementation
+### Android
+
+Add required bluetooth permissions in your AndroidManifest.xml file:
+
+```xml
+<uses-permission android:name="android.permission.BLUETOOTH" />
+<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+<uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+<uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+```
+
+Ask permissions using [permission_handler](https://pub.dev/packages/permission_handler) plugin
+
+### IOS/Macos
+
+Add permission in info.plist
+
+```
+<key>NSBluetoothAlwaysUsageDescription</key>
+<string>For advertise as ble peripheral</string>
+```
+
+For `MacOS`, make sure to enable bluetooth from Xcode
+
+### Windows
+
+Should work out of box on Windows
 
 ## Note
 
-Still under development, api's might change, this is just the initial version, feel free to contribute or report any bug!
+Feel free to contribute or report any bug!

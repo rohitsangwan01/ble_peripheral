@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:ble_peripheral/ble_peripheral.dart';
 
+/// A class that handles the callbacks from the BLE plugin.
+/// This class is used to convert the callbacks to a more readable format.
 class BleCallbackHandler extends BleCallback {
   AdvertisementStatusUpdateCallback? advertingStarted;
   BleStateCallback? bleStateChange;
