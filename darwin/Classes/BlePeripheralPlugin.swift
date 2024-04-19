@@ -60,26 +60,26 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
     func addService(service: BleService) throws {
         peripheralManager.add(service.toCBService())
     }
-    
+
     func removeService(serviceId: String) throws {
         if let service = serviceId.findService() {
             peripheralManager.remove(service)
             servicesList.removeAll { $0.uuid.uuidString.lowercased() == service.uuid.uuidString.lowercased() }
         }
     }
-    
+
     func clearServices() throws {
         peripheralManager.removeAllServices()
         servicesList.removeAll()
     }
-    
+
     func getServices() throws -> [String] {
-       return servicesList.map { service in
+        return servicesList.map { service in
             service.uuid.uuidString
         }
     }
 
-    func startAdvertising(services: [String], localName: String, timeout _: Int64?, manufacturerData: ManufacturerData?, addManufacturerDataInScanResponse _: Bool) throws {
+    func startAdvertising(services: [String], localName: String, timeout _: Int64?, manufacturerData _: ManufacturerData?, addManufacturerDataInScanResponse _: Bool) throws {
         let cbServices = services.map { uuidString in
             CBUUID(string: uuidString)
         }
@@ -108,23 +108,22 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
         if !containsDevice { cbCentrals.append(central) }
     }
 
-    func updateCharacteristic(devoiceID: String, characteristicId: String, value: FlutterStandardTypedData) throws {
-        let centralDevice: CBCentral? = cbCentrals.first(where: { device in
-            devoiceID == device.identifier.uuidString
-        })
+    func updateCharacteristic(characteristicId: String, value: FlutterStandardTypedData, deviceId: String?) throws {
         let char: CBMutableCharacteristic? = characteristicId.findCharacteristic()
-        if centralDevice == nil {
-            throw CustomError.notFound("\(devoiceID) device not found")
-        } else if char == nil {
-            throw CustomError.notFound("\(devoiceID) characteristic not found")
-        } else {
-            peripheralManager.updateValue(value.toData(), for: char!, onSubscribedCentrals: [centralDevice!])
+        if char == nil {
+            throw CustomError.notFound("\(characteristicId) characteristic not found")
         }
-    }
-
-    internal func updateChar(_ inputReport: [Int8], _ characteristic: CBMutableCharacteristic, device: CBCentral) {
-        let data = Data(bytes: inputReport, count: inputReport.count)
-        peripheralManager.updateValue(data, for: characteristic, onSubscribedCentrals: [device])
+        if let deviceId = deviceId {
+            let centralDevice: CBCentral? = cbCentrals.first(where: { device in
+                deviceId == device.identifier.uuidString
+            })
+            if centralDevice == nil {
+                throw CustomError.notFound("\(deviceId) device not found")
+            }
+            peripheralManager.updateValue(value.toData(), for: char!, onSubscribedCentrals: [centralDevice!])
+        } else {
+            peripheralManager.updateValue(value.toData(), for: char!, onSubscribedCentrals: cbCentrals)
+        }
     }
 
     /// Swift callbacks
@@ -142,11 +141,18 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
     }
 
     internal nonisolated func peripheralManager(_: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
-        updateCentralList(central: central)
+        // Add central to the list
+        if !cbCentrals.contains(where: { $0.identifier == central.identifier }) {
+            cbCentrals.append(central)
+        }
         bleCallback.onCharacteristicSubscriptionChange(deviceId: central.identifier.uuidString, characteristicId: characteristic.uuid.uuidString, isSubscribed: true) { _ in }
+        // Update MTU for this device
+        bleCallback.onMtuChange(deviceId: central.identifier.uuidString, mtu: Int64(central.maximumUpdateValueLength)) { _ in }
     }
 
     internal nonisolated func peripheralManager(_: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
+        // Remove central from the list
+        cbCentrals.removeAll { $0.identifier == central.identifier }
         bleCallback.onCharacteristicSubscriptionChange(deviceId: central.identifier.uuidString, characteristicId: characteristic.uuid.uuidString, isSubscribed: false) { _ in }
     }
 

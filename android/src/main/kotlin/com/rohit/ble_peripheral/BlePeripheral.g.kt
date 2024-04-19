@@ -281,7 +281,7 @@ interface BlePeripheralChannel {
   fun clearServices()
   fun getServices(): List<String>
   fun startAdvertising(services: List<String>, localName: String, timeout: Long?, manufacturerData: ManufacturerData?, addManufacturerDataInScanResponse: Boolean)
-  fun updateCharacteristic(devoiceID: String, characteristicId: String, value: ByteArray)
+  fun updateCharacteristic(characteristicId: String, value: ByteArray, deviceId: String?)
 
   companion object {
     /** The codec used by BlePeripheralChannel. */
@@ -472,12 +472,12 @@ interface BlePeripheralChannel {
         if (api != null) {
           channel.setMessageHandler { message, reply ->
             val args = message as List<Any?>
-            val devoiceIDArg = args[0] as String
-            val characteristicIdArg = args[1] as String
-            val valueArg = args[2] as ByteArray
+            val characteristicIdArg = args[0] as String
+            val valueArg = args[1] as ByteArray
+            val deviceIdArg = args[2] as String?
             var wrapped: List<Any?>
             try {
-              api.updateCharacteristic(devoiceIDArg, characteristicIdArg, valueArg)
+              api.updateCharacteristic(characteristicIdArg, valueArg, deviceIdArg)
               wrapped = listOf<Any?>(null)
             } catch (exception: Throwable) {
               wrapped = wrapError(exception)
@@ -634,6 +634,22 @@ class BleCallback(private val binaryMessenger: BinaryMessenger) {
       } 
     }
   }
+  fun onMtuChange(deviceIdArg: String, mtuArg: Long, callback: (Result<Unit>) -> Unit)
+{
+    val channelName = "dev.flutter.pigeon.ble_peripheral.BleCallback.onMtuChange"
+    val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
+    channel.send(listOf(deviceIdArg, mtuArg)) {
+      if (it is List<*>) {
+        if (it.size > 1) {
+          callback(Result.failure(FlutterError(it[0] as String, it[1] as String, it[2] as String?)))
+        } else {
+          callback(Result.success(Unit))
+        }
+      } else {
+        callback(Result.failure(createConnectionError(channelName)))
+      } 
+    }
+  }
   fun onConnectionStateChange(deviceIdArg: String, connectedArg: Boolean, callback: (Result<Unit>) -> Unit)
 {
     val channelName = "dev.flutter.pigeon.ble_peripheral.BleCallback.onConnectionStateChange"
@@ -655,22 +671,6 @@ class BleCallback(private val binaryMessenger: BinaryMessenger) {
     val channelName = "dev.flutter.pigeon.ble_peripheral.BleCallback.onBondStateChange"
     val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
     channel.send(listOf(deviceIdArg, bondStateArg.raw)) {
-      if (it is List<*>) {
-        if (it.size > 1) {
-          callback(Result.failure(FlutterError(it[0] as String, it[1] as String, it[2] as String?)))
-        } else {
-          callback(Result.success(Unit))
-        }
-      } else {
-        callback(Result.failure(createConnectionError(channelName)))
-      } 
-    }
-  }
-  fun onMtuChange(deviceIdArg: String, mtuArg: Long, callback: (Result<Unit>) -> Unit)
-{
-    val channelName = "dev.flutter.pigeon.ble_peripheral.BleCallback.onMtuChange"
-    val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
-    channel.send(listOf(deviceIdArg, mtuArg)) {
       if (it is List<*>) {
         if (it.size > 1) {
           callback(Result.failure(FlutterError(it[0] as String, it[1] as String, it[2] as String?)))

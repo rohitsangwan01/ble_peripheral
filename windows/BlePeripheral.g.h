@@ -335,9 +335,9 @@ class BlePeripheralChannel {
     const ManufacturerData* manufacturer_data,
     bool add_manufacturer_data_in_scan_response) = 0;
   virtual std::optional<FlutterError> UpdateCharacteristic(
-    const std::string& devoice_i_d,
     const std::string& characteristic_id,
-    const std::vector<uint8_t>& value) = 0;
+    const std::vector<uint8_t>& value,
+    const std::string* device_id) = 0;
 
   // The codec used by BlePeripheralChannel.
   static const flutter::StandardMessageCodec& GetCodec();
@@ -412,6 +412,11 @@ class BleCallback {
     const std::string* error,
     std::function<void(void)>&& on_success,
     std::function<void(const FlutterError&)>&& on_error);
+  void OnMtuChange(
+    const std::string& device_id,
+    int64_t mtu,
+    std::function<void(void)>&& on_success,
+    std::function<void(const FlutterError&)>&& on_error);
   void OnConnectionStateChange(
     const std::string& device_id,
     bool connected,
@@ -420,11 +425,6 @@ class BleCallback {
   void OnBondStateChange(
     const std::string& device_id,
     const BondState& bond_state,
-    std::function<void(void)>&& on_success,
-    std::function<void(const FlutterError&)>&& on_error);
-  void OnMtuChange(
-    const std::string& device_id,
-    int64_t mtu,
     std::function<void(void)>&& on_success,
     std::function<void(const FlutterError&)>&& on_error);
 

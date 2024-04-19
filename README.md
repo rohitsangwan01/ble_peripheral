@@ -75,7 +75,7 @@ await BlePeripheral.stopAdvertising();
 This callback is common for android and Apple, simply tells us when a central device is available, on Android, we gets a device in `setConnectionStateChangeCallback` when a central device is ready to use, on iOS we gets a device in `setCharacteristicSubscriptionChangeCallback` when a central device is ready to use
 
 ```dart
-// Common for Android/Apple
+// Common for all platforms
 BlePeripheral.setBleCentralAvailabilityCallback((String deviceId,bool isAvailable) {
   Get.log("OnDeviceAvailabilityChange: $deviceId : $isAvailable");
 });
@@ -85,6 +85,12 @@ BlePeripheral.setConnectionStateChangeCallback(ConnectionStateChangeCallback cal
 
 // Apple and Windows only, Called when central subscribes to a characteristic
 BlePeripheral.setCharacteristicSubscriptionChangeCallback(CharacteristicSubscriptionChangeCallback callback);
+```
+
+To update value of subscribed characteristic, on Apple and Android you can pass deviceId as well, to update characteristic for specific device only
+
+```dart
+BlePeripheral.updateCharacteristic(characteristicId: characteristicTest,value: utf8.encode("Test Data"));
 ```
 
 Other available callback handlers
@@ -105,7 +111,7 @@ BlePeripheral.setWriteRequestCallback(WriteRequestCallback callback);
 // Called when service added successfully
 BlePeripheral.setServiceAddedCallback(ServiceAddedCallback callback);
 
-// Only available on Android and Windows, Called when mtu changed
+// Called when mtu changed, on Apple and Windows, this will be called when a device subscribes to a characteristic
 BlePeripheral.setMtuChangeCallback(MtuChangeCallback callback);
 
 // Only available on Android, Called when central paired/unpaired

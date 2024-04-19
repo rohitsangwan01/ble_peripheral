@@ -760,25 +760,21 @@ void BlePeripheralChannel::SetUp(
       channel.SetMessageHandler([api](const EncodableValue& message, const flutter::MessageReply<EncodableValue>& reply) {
         try {
           const auto& args = std::get<EncodableList>(message);
-          const auto& encodable_devoice_i_d_arg = args.at(0);
-          if (encodable_devoice_i_d_arg.IsNull()) {
-            reply(WrapError("devoice_i_d_arg unexpectedly null."));
-            return;
-          }
-          const auto& devoice_i_d_arg = std::get<std::string>(encodable_devoice_i_d_arg);
-          const auto& encodable_characteristic_id_arg = args.at(1);
+          const auto& encodable_characteristic_id_arg = args.at(0);
           if (encodable_characteristic_id_arg.IsNull()) {
             reply(WrapError("characteristic_id_arg unexpectedly null."));
             return;
           }
           const auto& characteristic_id_arg = std::get<std::string>(encodable_characteristic_id_arg);
-          const auto& encodable_value_arg = args.at(2);
+          const auto& encodable_value_arg = args.at(1);
           if (encodable_value_arg.IsNull()) {
             reply(WrapError("value_arg unexpectedly null."));
             return;
           }
           const auto& value_arg = std::get<std::vector<uint8_t>>(encodable_value_arg);
-          std::optional<FlutterError> output = api->UpdateCharacteristic(devoice_i_d_arg, characteristic_id_arg, value_arg);
+          const auto& encodable_device_id_arg = args.at(2);
+          const auto* device_id_arg = std::get_if<std::string>(&encodable_device_id_arg);
+          std::optional<FlutterError> output = api->UpdateCharacteristic(characteristic_id_arg, value_arg, device_id_arg);
           if (output.has_value()) {
             reply(WrapError(output.value()));
             return;
@@ -1026,6 +1022,33 @@ void BleCallback::OnServiceAdded(
   });
 }
 
+void BleCallback::OnMtuChange(
+  const std::string& device_id_arg,
+  int64_t mtu_arg,
+  std::function<void(void)>&& on_success,
+  std::function<void(const FlutterError&)>&& on_error) {
+  const std::string channel_name = "dev.flutter.pigeon.ble_peripheral.BleCallback.onMtuChange";
+  BasicMessageChannel<> channel(binary_messenger_, channel_name, &GetCodec());
+  EncodableValue encoded_api_arguments = EncodableValue(EncodableList{
+    EncodableValue(device_id_arg),
+    EncodableValue(mtu_arg),
+  });
+  channel.Send(encoded_api_arguments, [channel_name, on_success = std::move(on_success), on_error = std::move(on_error)](const uint8_t* reply, size_t reply_size) {
+    std::unique_ptr<EncodableValue> response = GetCodec().DecodeMessage(reply, reply_size);
+    const auto& encodable_return_value = *response;
+    const auto* list_return_value = std::get_if<EncodableList>(&encodable_return_value);
+    if (list_return_value) {
+      if (list_return_value->size() > 1) {
+        on_error(FlutterError(std::get<std::string>(list_return_value->at(0)), std::get<std::string>(list_return_value->at(1)), list_return_value->at(2)));
+      } else {
+        on_success();
+      }
+    } else {
+      on_error(CreateConnectionError(channel_name));
+    } 
+  });
+}
+
 void BleCallback::OnConnectionStateChange(
   const std::string& device_id_arg,
   bool connected_arg,
@@ -1063,33 +1086,6 @@ void BleCallback::OnBondStateChange(
   EncodableValue encoded_api_arguments = EncodableValue(EncodableList{
     EncodableValue(device_id_arg),
     EncodableValue((int)bond_state_arg),
-  });
-  channel.Send(encoded_api_arguments, [channel_name, on_success = std::move(on_success), on_error = std::move(on_error)](const uint8_t* reply, size_t reply_size) {
-    std::unique_ptr<EncodableValue> response = GetCodec().DecodeMessage(reply, reply_size);
-    const auto& encodable_return_value = *response;
-    const auto* list_return_value = std::get_if<EncodableList>(&encodable_return_value);
-    if (list_return_value) {
-      if (list_return_value->size() > 1) {
-        on_error(FlutterError(std::get<std::string>(list_return_value->at(0)), std::get<std::string>(list_return_value->at(1)), list_return_value->at(2)));
-      } else {
-        on_success();
-      }
-    } else {
-      on_error(CreateConnectionError(channel_name));
-    } 
-  });
-}
-
-void BleCallback::OnMtuChange(
-  const std::string& device_id_arg,
-  int64_t mtu_arg,
-  std::function<void(void)>&& on_success,
-  std::function<void(const FlutterError&)>&& on_error) {
-  const std::string channel_name = "dev.flutter.pigeon.ble_peripheral.BleCallback.onMtuChange";
-  BasicMessageChannel<> channel(binary_messenger_, channel_name, &GetCodec());
-  EncodableValue encoded_api_arguments = EncodableValue(EncodableList{
-    EncodableValue(device_id_arg),
-    EncodableValue(mtu_arg),
   });
   channel.Send(encoded_api_arguments, [channel_name, on_success = std::move(on_success), on_error = std::move(on_error)](const uint8_t* reply, size_t reply_size) {
     std::unique_ptr<EncodableValue> response = GetCodec().DecodeMessage(reply, reply_size);

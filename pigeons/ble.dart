@@ -96,9 +96,9 @@ abstract class BlePeripheralChannel {
   );
 
   void updateCharacteristic(
-    String devoiceID,
     String characteristicId,
     Uint8List value,
+    String? deviceId,
   );
 }
 
@@ -131,10 +131,10 @@ abstract class BleCallback {
 
   void onServiceAdded(String serviceId, String? error);
 
+  void onMtuChange(String deviceId, int mtu);
+
   // Android only
   void onConnectionStateChange(String deviceId, bool connected);
 
   void onBondStateChange(String deviceId, BondState bondState);
-
-  void onMtuChange(String deviceId, int mtu);
 }

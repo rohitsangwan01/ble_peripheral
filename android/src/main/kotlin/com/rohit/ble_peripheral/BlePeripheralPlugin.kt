@@ -191,20 +191,32 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
     }
 
     override fun updateCharacteristic(
-        devoiceID: String,
         characteristicId: String,
         value: ByteArray,
+        deviceId: String?,
     ) {
-        val device = bluetoothDevicesMap[devoiceID] ?: throw Exception("Device not found")
         val char =
             characteristicId.findCharacteristic() ?: throw Exception("Characteristic not found")
-        handler.post {
-            char.value = value
-            gattServer?.notifyCharacteristicChanged(
-                device,
-                char,
-                true
-            )
+        char.value = value
+        if (deviceId != null) {
+            val device = bluetoothDevicesMap[deviceId] ?: throw Exception("Device not found")
+            handler.post {
+                gattServer?.notifyCharacteristicChanged(
+                    device,
+                    char,
+                    true
+                )
+            }
+        } else {
+            bluetoothDevicesMap.forEach { (_, device) ->
+                handler.post {
+                    gattServer?.notifyCharacteristicChanged(
+                        device,
+                        char,
+                        true
+                    )
+                }
+            }
         }
     }
 

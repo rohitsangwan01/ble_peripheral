@@ -178,16 +178,13 @@ class HomeController extends GetxController {
 
   /// Update characteristic value, to all the devices which are subscribed to it
   void updateCharacteristic() async {
-    for (var device in devices) {
-      try {
-        await BlePeripheral.updateCharacteristic(
-          deviceId: device,
-          characteristicId: characteristicTest,
-          value: utf8.encode("Test Data"),
-        );
-      } catch (e) {
-        Get.log("UpdateCharacteristicError: $e");
-      }
+    try {
+      await BlePeripheral.updateCharacteristic(
+        characteristicId: characteristicTest,
+        value: utf8.encode("Test Data"),
+      );
+    } catch (e) {
+      Get.log("UpdateCharacteristicError: $e");
     }
   }
 }

@@ -121,9 +121,9 @@ namespace ble_peripheral
             const ManufacturerData *manufacturer_data,
             bool add_manufacturer_data_in_scan_response);
         std::optional<FlutterError> UpdateCharacteristic(
-            const std::string &devoice_i_d,
-            const std::string &characteristic_id,
-            const std::vector<uint8_t> &value);
+            const std::string& characteristic_id,
+            const std::vector<uint8_t>& value,
+            const std::string* device_id);
     };
 
 } // namespace ble_peripheral

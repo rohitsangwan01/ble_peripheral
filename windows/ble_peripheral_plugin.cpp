@@ -194,9 +194,9 @@ namespace ble_peripheral
   }
 
   std::optional<FlutterError> BlePeripheralPlugin::UpdateCharacteristic(
-      const std::string &devoice_i_d,
-      const std::string &characteristic_id,
-      const std::vector<uint8_t> &value)
+      const std::string& characteristic_id,
+      const std::vector<uint8_t>& value,
+      const std::string* device_id)
   {
     GattCharacteristicObject *gattCharacteristicObject = FindGattCharacteristicObject(characteristic_id);
     if (gattCharacteristicObject == nullptr)

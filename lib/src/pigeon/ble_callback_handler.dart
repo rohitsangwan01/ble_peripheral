@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:ble_peripheral/ble_peripheral.dart';
+import 'package:ble_peripheral/src/ble_peripheral_interface.dart';
 
 /// A class that handles the callbacks from the BLE plugin.
 /// This class is used to convert the callbacks to a more readable format.
@@ -77,19 +78,3 @@ class BleCallbackHandler extends BleCallback {
       mtuChangeCallback?.call(deviceId, mtu);
 }
 
-typedef AvailableDevicesListener = void Function(
-    String deviceId, bool isAvailable);
-typedef AdvertisementStatusUpdateCallback = void Function(
-    bool advertising, String? error);
-typedef BleStateCallback = void Function(bool state);
-typedef BondStateCallback = void Function(String deviceId, BondState bondState);
-typedef CharacteristicSubscriptionChangeCallback = void Function(
-    String deviceId, String characteristicId, bool isSubscribed);
-typedef ConnectionStateChangeCallback = void Function(
-    String deviceId, bool connected);
-typedef ReadRequestCallback = ReadRequestResult? Function(
-    String deviceId, String characteristicId, int offset, Uint8List? value);
-typedef ServiceAddedCallback = void Function(String serviceId, String? error);
-typedef WriteRequestCallback = WriteRequestResult? Function(
-    String deviceId, String characteristicId, int offset, Uint8List? value);
-typedef MtuChangeCallback = void Function(String deviceId, int mtu);

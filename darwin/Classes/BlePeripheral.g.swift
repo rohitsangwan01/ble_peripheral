@@ -276,7 +276,7 @@ protocol BlePeripheralChannel {
   func clearServices() throws
   func getServices() throws -> [String]
   func startAdvertising(services: [String], localName: String, timeout: Int64?, manufacturerData: ManufacturerData?, addManufacturerDataInScanResponse: Bool) throws
-  func updateCharacteristic(devoiceID: String, characteristicId: String, value: FlutterStandardTypedData) throws
+  func updateCharacteristic(characteristicId: String, value: FlutterStandardTypedData, deviceId: String?) throws
 }
 
 /// Generated setup class from Pigeon to handle messages through the `binaryMessenger`.
@@ -429,11 +429,11 @@ class BlePeripheralChannelSetup {
     if let api = api {
       updateCharacteristicChannel.setMessageHandler { message, reply in
         let args = message as! [Any?]
-        let devoiceIDArg = args[0] as! String
-        let characteristicIdArg = args[1] as! String
-        let valueArg = args[2] as! FlutterStandardTypedData
+        let characteristicIdArg = args[0] as! String
+        let valueArg = args[1] as! FlutterStandardTypedData
+        let deviceIdArg: String? = nilOrValue(args[2])
         do {
-          try api.updateCharacteristic(devoiceID: devoiceIDArg, characteristicId: characteristicIdArg, value: valueArg)
+          try api.updateCharacteristic(characteristicId: characteristicIdArg, value: valueArg, deviceId: deviceIdArg)
           reply(wrapResult(nil))
         } catch {
           reply(wrapError(error))
@@ -495,9 +495,9 @@ protocol BleCallbackProtocol {
   func onAdvertisingStatusUpdate(advertising advertisingArg: Bool, error errorArg: String?, completion: @escaping (Result<Void, FlutterError>) -> Void)
   func onBleStateChange(state stateArg: Bool, completion: @escaping (Result<Void, FlutterError>) -> Void)
   func onServiceAdded(serviceId serviceIdArg: String, error errorArg: String?, completion: @escaping (Result<Void, FlutterError>) -> Void)
+  func onMtuChange(deviceId deviceIdArg: String, mtu mtuArg: Int64, completion: @escaping (Result<Void, FlutterError>) -> Void)
   func onConnectionStateChange(deviceId deviceIdArg: String, connected connectedArg: Bool, completion: @escaping (Result<Void, FlutterError>) -> Void)
   func onBondStateChange(deviceId deviceIdArg: String, bondState bondStateArg: BondState, completion: @escaping (Result<Void, FlutterError>) -> Void)
-  func onMtuChange(deviceId deviceIdArg: String, mtu mtuArg: Int64, completion: @escaping (Result<Void, FlutterError>) -> Void)
 }
 class BleCallback: BleCallbackProtocol {
   private let binaryMessenger: FlutterBinaryMessenger
@@ -617,6 +617,24 @@ class BleCallback: BleCallbackProtocol {
       }
     }
   }
+  func onMtuChange(deviceId deviceIdArg: String, mtu mtuArg: Int64, completion: @escaping (Result<Void, FlutterError>) -> Void) {
+    let channelName: String = "dev.flutter.pigeon.ble_peripheral.BleCallback.onMtuChange"
+    let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
+    channel.sendMessage([deviceIdArg, mtuArg] as [Any?]) { response in
+      guard let listResponse = response as? [Any?] else {
+        completion(.failure(createConnectionError(withChannelName: channelName)))
+        return
+      }
+      if listResponse.count > 1 {
+        let code: String = listResponse[0] as! String
+        let message: String? = nilOrValue(listResponse[1])
+        let details: String? = nilOrValue(listResponse[2])
+        completion(.failure(FlutterError(code: code, message: message, details: details)))
+      } else {
+        completion(.success(Void()))
+      }
+    }
+  }
   func onConnectionStateChange(deviceId deviceIdArg: String, connected connectedArg: Bool, completion: @escaping (Result<Void, FlutterError>) -> Void) {
     let channelName: String = "dev.flutter.pigeon.ble_peripheral.BleCallback.onConnectionStateChange"
     let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
@@ -639,24 +657,6 @@ class BleCallback: BleCallbackProtocol {
     let channelName: String = "dev.flutter.pigeon.ble_peripheral.BleCallback.onBondStateChange"
     let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
     channel.sendMessage([deviceIdArg, bondStateArg.rawValue] as [Any?]) { response in
-      guard let listResponse = response as? [Any?] else {
-        completion(.failure(createConnectionError(withChannelName: channelName)))
-        return
-      }
-      if listResponse.count > 1 {
-        let code: String = listResponse[0] as! String
-        let message: String? = nilOrValue(listResponse[1])
-        let details: String? = nilOrValue(listResponse[2])
-        completion(.failure(FlutterError(code: code, message: message, details: details)))
-      } else {
-        completion(.success(Void()))
-      }
-    }
-  }
-  func onMtuChange(deviceId deviceIdArg: String, mtu mtuArg: Int64, completion: @escaping (Result<Void, FlutterError>) -> Void) {
-    let channelName: String = "dev.flutter.pigeon.ble_peripheral.BleCallback.onMtuChange"
-    let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
-    channel.sendMessage([deviceIdArg, mtuArg] as [Any?]) { response in
       guard let listResponse = response as? [Any?] else {
         completion(.failure(createConnectionError(withChannelName: channelName)))
         return
