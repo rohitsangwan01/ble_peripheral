@@ -89,7 +89,7 @@ abstract class BlePeripheralChannel {
 
   void startAdvertising(
     List<String> services,
-    String localName,
+    String? localName,
     int? timeout,
     ManufacturerData? manufacturerData,
     bool addManufacturerDataInScanResponse,

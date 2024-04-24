@@ -280,7 +280,7 @@ interface BlePeripheralChannel {
   fun removeService(serviceId: String)
   fun clearServices()
   fun getServices(): List<String>
-  fun startAdvertising(services: List<String>, localName: String, timeout: Long?, manufacturerData: ManufacturerData?, addManufacturerDataInScanResponse: Boolean)
+  fun startAdvertising(services: List<String>, localName: String?, timeout: Long?, manufacturerData: ManufacturerData?, addManufacturerDataInScanResponse: Boolean)
   fun updateCharacteristic(characteristicId: String, value: ByteArray, deviceId: String?)
 
   companion object {
@@ -450,7 +450,7 @@ interface BlePeripheralChannel {
           channel.setMessageHandler { message, reply ->
             val args = message as List<Any?>
             val servicesArg = args[0] as List<String>
-            val localNameArg = args[1] as String
+            val localNameArg = args[1] as String?
             val timeoutArg = args[2].let { if (it is Int) it.toLong() else it as Long? }
             val manufacturerDataArg = args[3] as ManufacturerData?
             val addManufacturerDataInScanResponseArg = args[4] as Boolean

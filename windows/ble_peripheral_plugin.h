@@ -116,7 +116,7 @@ namespace ble_peripheral
         ErrorOr<flutter::EncodableList> GetServices();
         std::optional<FlutterError> StartAdvertising(
             const flutter::EncodableList &services,
-            const std::string &local_name,
+            const std::string* local_name,
             const int64_t *timeout,
             const ManufacturerData *manufacturer_data,
             bool add_manufacturer_data_in_scan_response);

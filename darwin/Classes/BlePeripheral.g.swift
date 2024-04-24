@@ -275,7 +275,7 @@ protocol BlePeripheralChannel {
   func removeService(serviceId: String) throws
   func clearServices() throws
   func getServices() throws -> [String]
-  func startAdvertising(services: [String], localName: String, timeout: Int64?, manufacturerData: ManufacturerData?, addManufacturerDataInScanResponse: Bool) throws
+  func startAdvertising(services: [String], localName: String?, timeout: Int64?, manufacturerData: ManufacturerData?, addManufacturerDataInScanResponse: Bool) throws
   func updateCharacteristic(characteristicId: String, value: FlutterStandardTypedData, deviceId: String?) throws
 }
 
@@ -411,7 +411,7 @@ class BlePeripheralChannelSetup {
       startAdvertisingChannel.setMessageHandler { message, reply in
         let args = message as! [Any?]
         let servicesArg = args[0] as! [String]
-        let localNameArg = args[1] as! String
+        let localNameArg: String? = nilOrValue(args[1])
         let timeoutArg: Int64? = isNullish(args[2]) ? nil : (args[2] is Int64? ? args[2] as! Int64? : Int64(args[2] as! Int32))
         let manufacturerDataArg: ManufacturerData? = nilOrValue(args[3])
         let addManufacturerDataInScanResponseArg = args[4] as! Bool

@@ -330,7 +330,7 @@ class BlePeripheralChannel {
   virtual ErrorOr<flutter::EncodableList> GetServices() = 0;
   virtual std::optional<FlutterError> StartAdvertising(
     const flutter::EncodableList& services,
-    const std::string& local_name,
+    const std::string* local_name,
     const int64_t* timeout,
     const ManufacturerData* manufacturer_data,
     bool add_manufacturer_data_in_scan_response) = 0;

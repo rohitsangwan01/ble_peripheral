@@ -115,7 +115,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
 
     override fun startAdvertising(
         services: List<String>,
-        localName: String,
+        localName: String?,
         timeout: Long?,
         manufacturerData: ManufacturerData?,
         addManufacturerDataInScanResponse: Boolean,
@@ -126,7 +126,9 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
         }
 
         handler.post { // set up advertising setting
-            bluetoothManager.adapter.name = localName
+            localName?.let {
+                bluetoothManager.adapter.name = it
+            }
             val advertiseSettings = AdvertiseSettings.Builder()
                 .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
                 .setConnectable(true)

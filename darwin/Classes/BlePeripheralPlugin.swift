@@ -78,15 +78,16 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
         }
     }
 
-    func startAdvertising(services: [String], localName: String, timeout _: Int64?, manufacturerData _: ManufacturerData?, addManufacturerDataInScanResponse _: Bool) throws {
+    func startAdvertising(services: [String], localName: String?, timeout _: Int64?, manufacturerData _: ManufacturerData?, addManufacturerDataInScanResponse _: Bool) throws {
         let cbServices = services.map { uuidString in
             CBUUID(string: uuidString)
         }
-
-        let advertisementData: [String: Any] = [
+        var advertisementData: [String: Any] = [
             CBAdvertisementDataServiceUUIDsKey: cbServices,
-            CBAdvertisementDataLocalNameKey: localName,
         ]
+        if(localName != nil){
+            advertisementData[CBAdvertisementDataLocalNameKey] = localName
+        }
 //        if let manufacturerData = manufacturerData {
 //            var manufData = Data()
 //            manufData.append(contentsOf: withUnsafeBytes(of: manufacturerData.manufacturerId) { Data($0) })

@@ -486,7 +486,7 @@ class BlePeripheralChannel {
     }
   }
 
-  Future<void> startAdvertising(List<String?> services, String localName, int? timeout, ManufacturerData? manufacturerData, bool addManufacturerDataInScanResponse) async {
+  Future<void> startAdvertising(List<String?> services, String? localName, int? timeout, ManufacturerData? manufacturerData, bool addManufacturerDataInScanResponse) async {
     const String __pigeon_channelName = 'dev.flutter.pigeon.ble_peripheral.BlePeripheralChannel.startAdvertising';
     final BasicMessageChannel<Object?> __pigeon_channel = BasicMessageChannel<Object?>(
       __pigeon_channelName,

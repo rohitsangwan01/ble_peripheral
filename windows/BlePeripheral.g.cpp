@@ -722,11 +722,7 @@ void BlePeripheralChannel::SetUp(
           }
           const auto& services_arg = std::get<EncodableList>(encodable_services_arg);
           const auto& encodable_local_name_arg = args.at(1);
-          if (encodable_local_name_arg.IsNull()) {
-            reply(WrapError("local_name_arg unexpectedly null."));
-            return;
-          }
-          const auto& local_name_arg = std::get<std::string>(encodable_local_name_arg);
+          const auto* local_name_arg = std::get_if<std::string>(&encodable_local_name_arg);
           const auto& encodable_timeout_arg = args.at(2);
           const int64_t timeout_arg_value = encodable_timeout_arg.IsNull() ? 0 : encodable_timeout_arg.LongValue();
           const auto* timeout_arg = encodable_timeout_arg.IsNull() ? nullptr : &timeout_arg_value;

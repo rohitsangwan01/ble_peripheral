@@ -94,7 +94,7 @@ class BlePeripheralPigeon extends BlePeripheralInterface {
   @override
   Future<void> startAdvertising({
     required List<String> services,
-    required String localName,
+    String? localName,
     int? timeout,
     ManufacturerData? manufacturerData,
     bool addManufacturerDataInScanResponse = false,

@@ -127,7 +127,7 @@ namespace ble_peripheral
 
   std::optional<FlutterError> BlePeripheralPlugin::StartAdvertising(
       const flutter::EncodableList &services,
-      const std::string &local_name,
+      const std::string* local_name,
       const int64_t *timeout,
       const ManufacturerData *manufacturer_data,
       bool add_manufacturer_data_in_scan_response)
