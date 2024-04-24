@@ -15,6 +15,8 @@ private val bluetoothGattCharacteristics: MutableMap<String, BluetoothGattCharac
     HashMap()
 private val descriptorValueReadMap: MutableMap<String, ByteArray> =
     HashMap()
+val subscribedCharDevicesMap: MutableMap<String, MutableList<String>> = HashMap()
+const val descriptorCCUUID = "00002902-0000-1000-8000-00805f9b34fb"
 
 
 fun Activity.havePermission(permissions: Array<String>): Boolean {
@@ -50,19 +52,61 @@ fun BleCharacteristic.toGattCharacteristic(): BluetoothGattCharacteristic {
         properties.toPropertiesList(),
         permissions.toPermissionsList()
     )
+    value?.let {
+        char.value = it
+    }
     descriptors?.forEach {
         it?.toGattDescriptor()?.let { descriptor ->
             char.addDescriptor(descriptor)
         }
     }
+
+    addCCDescriptorIfRequired(this, char)
+
     if (bluetoothGattCharacteristics[uuid] == null) {
         bluetoothGattCharacteristics[uuid] = char
     }
     return char
 }
 
+fun addCCDescriptorIfRequired(
+    bleCharacteristic: BleCharacteristic,
+    char: BluetoothGattCharacteristic,
+) {
+    var haveNotifyOrIndicateProperty =
+        char.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0 ||
+                char.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE != 0
+    if (!haveNotifyOrIndicateProperty) return
+
+    var cccdDescriptorAlreadyAdded = false
+    for (descriptor in bleCharacteristic.descriptors ?: Collections.emptyList()) {
+        if (descriptor?.uuid?.lowercase() == descriptorCCUUID.lowercase()) {
+            cccdDescriptorAlreadyAdded = true
+            break
+        }
+    }
+
+    if (cccdDescriptorAlreadyAdded) return
+
+    val cccdDescriptor = BluetoothGattDescriptor(
+        UUID.fromString(descriptorCCUUID),
+        BluetoothGattDescriptor.PERMISSION_READ or BluetoothGattDescriptor.PERMISSION_WRITE
+    )
+    cccdDescriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+    char.addDescriptor(cccdDescriptor)
+    Log.d("BlePeripheral", "Added CCCD for ${char.uuid}")
+}
+
 fun BluetoothGattDescriptor.getCacheValue(): ByteArray? {
     return descriptorValueReadMap[uuid.toString().lowercase()]
+}
+
+fun ByteArray.toIntArray(): List<Int> {
+    val data: MutableList<Int> = mutableListOf()
+    for (i in this.indices) {
+        data.add(this[i].toInt())
+    }
+    return data
 }
 
 fun BleDescriptor.toGattDescriptor(): BluetoothGattDescriptor {
@@ -74,6 +118,7 @@ fun BleDescriptor.toGattDescriptor(): BluetoothGattDescriptor {
         permission
     )
     value?.let {
+        descriptor.value = it
         descriptorValueReadMap[uuid.lowercase()] = it
     }
     return descriptor

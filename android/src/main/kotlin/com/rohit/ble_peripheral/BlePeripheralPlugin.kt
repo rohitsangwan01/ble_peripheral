@@ -29,7 +29,6 @@ import androidx.core.app.ActivityCompat
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
-import io.flutter.plugin.common.PluginRegistry
 import java.util.Collections
 
 private const val TAG = "BlePeripheralPlugin"
@@ -176,14 +175,6 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                 bluetoothLeAdvertiser?.stopAdvertising(advertiseCallback)
                 isAdvertising = false
                 bleCallback?.onAdvertisingStatusUpdate(false, null) {}
-                if (gattServer != null) {
-                    val devices: Set<BluetoothDevice> = devices
-                    for (device in devices) {
-                        gattServer?.cancelConnection(device)
-                    }
-//                    gattServer?.close()
-//                    gattServer = null
-                }
             } catch (ignored: IllegalStateException) {
                 throw Exception("Bluetooth Adapter is not turned ON")
             }
@@ -241,6 +232,28 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                 newState == BluetoothProfile.STATE_CONNECTED,
             ) {}
         }
+        // Send char unsubscribe event on disconnect
+        if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+            cleanConnection(device)
+        }
+    }
+
+    private fun cleanConnection(device: BluetoothDevice) {
+        val deviceAddress = device.address
+
+        // Notify char unsubscribe event on disconnect
+        val subscribedCharUUID: MutableList<String> =
+            subscribedCharDevicesMap[deviceAddress] ?: mutableListOf()
+        subscribedCharUUID.forEach { charUUID ->
+            handler.post {
+                bleCallback?.onCharacteristicSubscriptionChange(
+                    deviceAddress,
+                    charUUID,
+                    false
+                ) {}
+            }
+        }
+        subscribedCharDevicesMap.remove(deviceAddress)
     }
 
     private val advertiseCallback: AdvertiseCallback = object : AdvertiseCallback() {
@@ -324,6 +337,17 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
             ) {
                 super.onCharacteristicReadRequest(device, requestId, offset, characteristic)
                 if (gattServer == null) return
+//                val value = characteristic.value
+//                if (value != null) {
+//                    gattServer?.sendResponse(
+//                        device,
+//                        requestId,
+//                        BluetoothGatt.GATT_SUCCESS,
+//                        offset,
+//                        value
+//                    )
+//                }
+
                 handler.post {
                     bleCallback?.onReadRequest(
                         deviceIdArg = device.address,
@@ -408,6 +432,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                 descriptor: BluetoothGattDescriptor,
             ) {
                 super.onDescriptorReadRequest(device, requestId, offset, descriptor)
+                Log.e(TAG, "onDescriptorReadRequest: -> ${descriptor.uuid}")
                 handler.post {
                     val value: ByteArray? = descriptor.getCacheValue()
                     if (value != null) {
@@ -448,13 +473,58 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                     offset,
                     value
                 )
-                gattServer?.sendResponse(
-                    device,
-                    requestId,
-                    BluetoothGatt.GATT_SUCCESS,
-                    0,
-                    emptyBytes
+                Log.d(
+                    TAG,
+                    "onDescriptorWriteRequest: ${value?.toIntArray()} -> ${descriptor.uuid} | Char UUID: ${descriptor.characteristic.uuid}"
                 )
+                descriptor.setValue(value)
+                if (descriptor.uuid.toString().lowercase() == descriptorCCUUID) {
+                    val isSubscribed =
+                        BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE.contentEquals(value)
+                                || BluetoothGattDescriptor.ENABLE_INDICATION_VALUE.contentEquals(
+                            value
+                        )
+                    val characteristicId = descriptor.characteristic.uuid.toString()
+                    device?.address?.let {
+                        handler.post {
+                            bleCallback?.onCharacteristicSubscriptionChange(
+                                it,
+                                characteristicId,
+                                isSubscribed
+                            ) {}
+                        }
+
+                        // Update subscribed char list
+                        val charList: MutableList<String> =
+                            subscribedCharDevicesMap[it] ?: mutableListOf()
+                        if (isSubscribed) {
+                            charList.add(characteristicId)
+                        } else if (charList.contains(characteristicId)) {
+                            charList.remove(characteristicId)
+                        }
+                        subscribedCharDevicesMap[it] = charList
+                    }
+
+                }
+                if (responseNeeded) {
+                    gattServer?.sendResponse(
+                        device,
+                        requestId,
+                        BluetoothGatt.GATT_SUCCESS,
+                        offset,
+                        value ?: emptyBytes
+                    )
+                }
+            }
+
+            override fun onNotificationSent(device: BluetoothDevice?, status: Int) {
+                super.onNotificationSent(device, status)
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    Log.e(
+                        TAG,
+                        "onNotificationSentFailed:${device?.address} ${device?.name}, Status: $status"
+                    )
+                }
             }
         }
 

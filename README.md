@@ -75,19 +75,14 @@ await BlePeripheral.stopAdvertising();
 This callback is common for android and Apple, simply tells us when a central device is available, on Android, we gets a device in `setConnectionStateChangeCallback` when a central device is ready to use, on iOS we gets a device in `setCharacteristicSubscriptionChangeCallback` when a central device is ready to use
 
 ```dart
-// Common for all platforms
-BlePeripheral.setBleCentralAvailabilityCallback((String deviceId,bool isAvailable) {
-  Get.log("OnDeviceAvailabilityChange: $deviceId : $isAvailable");
-});
-
-// Android only, Called when central connected
-BlePeripheral.setConnectionStateChangeCallback(ConnectionStateChangeCallback callback);
-
-// Apple and Windows only, Called when central subscribes to a characteristic
+// Called when central subscribes to a characteristic
 BlePeripheral.setCharacteristicSubscriptionChangeCallback(CharacteristicSubscriptionChangeCallback callback);
+
+// Android only, Called when central connected/disconnected
+BlePeripheral.setConnectionStateChangeCallback(ConnectionStateChangeCallback callback);
 ```
 
-To update value of subscribed characteristic, on Apple and Android you can pass deviceId as well, to update characteristic for specific device only
+To update value of subscribed characteristic, on Apple and Android you can pass deviceId as well, to update characteristic for specific device only, else all devices subscribed to this characteristic will be notified
 
 ```dart
 BlePeripheral.updateCharacteristic(characteristicId: characteristicTest,value: utf8.encode("Test Data"));
@@ -96,7 +91,7 @@ BlePeripheral.updateCharacteristic(characteristicId: characteristicTest,value: u
 Other available callback handlers
 
 ```dart
-// Called when advertisement started/failed
+// Called when advertisement started, stopped or failed
 BlePeripheral.setAdvertisingStatusUpdateCallback(AdvertisementStatusUpdateCallback callback);
 
 // Called when Bluetooth radio on device turned on/off

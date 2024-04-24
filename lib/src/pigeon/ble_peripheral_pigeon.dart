@@ -115,10 +115,6 @@ class BlePeripheralPigeon extends BlePeripheralInterface {
   @override
   Future<void> stopAdvertising() => _channel.stopAdvertising();
 
-  @override
-  void setBleCentralAvailabilityCallback(AvailableDevicesListener callback) =>
-      _callbackHandler.availableDevicesListener = callback;
-
   /// Get the callback when advertising is started or stopped
   @override
   void setAdvertisingStatusUpdateCallback(

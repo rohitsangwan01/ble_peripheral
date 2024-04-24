@@ -32,12 +32,11 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
     }
 
     func initialize() throws {
-        print("Initialize called")
-        print("isAdvertising \(peripheralManager.isAdvertising)")
+        // To trigger the peripheralManagerDidUpdateState callback
+        peripheralManager.isAdvertising
     }
 
     func isSupported() throws -> Bool {
-        print("isSupportedCalled")
         // TODO: implement this
         return true
     }
@@ -122,7 +121,7 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
             }
             peripheralManager.updateValue(value.toData(), for: char!, onSubscribedCentrals: [centralDevice!])
         } else {
-            peripheralManager.updateValue(value.toData(), for: char!, onSubscribedCentrals: cbCentrals)
+            peripheralManager.updateValue(value.toData(), for: char!, onSubscribedCentrals: nil)
         }
     }
 

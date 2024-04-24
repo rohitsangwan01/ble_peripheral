@@ -61,9 +61,12 @@ class HomeController extends GetxController {
       Get.log("AdvertingStarted: $advertising, Error: $error");
     });
 
-    BlePeripheral.setBleCentralAvailabilityCallback((deviceId, isAvailable) {
-      Get.log("OnDeviceAvailabilityChange: $deviceId : $isAvailable");
-      if (isAvailable) {
+    BlePeripheral.setCharacteristicSubscriptionChangeCallback(
+        (String deviceId, String characteristicId, bool isSubscribed) {
+      Get.log(
+        "onCharacteristicSubscriptionChange: $deviceId : $characteristicId $isSubscribed",
+      );
+      if (isSubscribed) {
         if (!devices.any((element) => element == deviceId)) {
           devices.add(deviceId);
           Get.log("$deviceId adding");

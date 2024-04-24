@@ -86,15 +86,6 @@ class BlePeripheral {
   /// Stop advertising
   static Future<void> stopAdvertising() => _platform.stopAdvertising();
 
-  // Setters for callback handlers
-
-  /// This callback is common for android and Apple, simply tells us when a central device is ready to use
-  /// on Android, we gets a device in [setConnectionStateChangeCallback] when a central device is ready to use
-  /// on Apple and Windows, we gets a device in [setCharacteristicSubscriptionChangeCallback] when a central device is ready to use
-  static void setBleCentralAvailabilityCallback(
-          AvailableDevicesListener callback) =>
-      _platform.setBleCentralAvailabilityCallback(callback);
-
   /// Get the callback when advertising is started or stopped
   static void setAdvertisingStatusUpdateCallback(
           AdvertisementStatusUpdateCallback callback) =>

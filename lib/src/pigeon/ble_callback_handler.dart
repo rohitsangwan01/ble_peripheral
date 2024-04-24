@@ -15,7 +15,6 @@ class BleCallbackHandler extends BleCallback {
   ReadRequestCallback? readRequest;
   ServiceAddedCallback? serviceAdded;
   WriteRequestCallback? writeRequest;
-  AvailableDevicesListener? availableDevicesListener;
   MtuChangeCallback? mtuChangeCallback;
 
   final serviceResultStreamController =
@@ -37,13 +36,11 @@ class BleCallbackHandler extends BleCallback {
       String deviceId, String characteristicId, bool isSubscribed) {
     characteristicSubscriptionChange?.call(
         deviceId, characteristicId, isSubscribed);
-    availableDevicesListener?.call(deviceId, isSubscribed);
   }
 
   @override
   void onConnectionStateChange(String deviceId, bool connected) {
     connectionStateChange?.call(deviceId, connected);
-    availableDevicesListener?.call(deviceId, connected);
   }
 
   @override
@@ -77,4 +74,3 @@ class BleCallbackHandler extends BleCallback {
   void onMtuChange(String deviceId, int mtu) =>
       mtuChangeCallback?.call(deviceId, mtu);
 }
-
