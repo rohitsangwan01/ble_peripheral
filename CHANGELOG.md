@@ -1,8 +1,8 @@
 ## 2.3.0
 
+- Breaking Change: Removed setBleCentralAvailabilityCallback ( because all platforms supports characteristics subscription change now )
 - Add setCharacteristicSubscriptionChangeCallback support on Android
 - localName is optional in StartAdvertisement method now
-- Breaking Change: Removed setBleCentralAvailabilityCallback ( because all platforms supports characteristics subscription change now )
 - Add setInstance for testing or Mock implementation
 - Add BlePeripheralInterface for setting your own implementation
 - Remove Linux dependency to fix crash on linux
