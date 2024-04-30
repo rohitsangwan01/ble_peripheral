@@ -91,6 +91,11 @@ class HomeController extends GetxController {
       return null;
     });
 
+    // Android only
+    BlePeripheral.setBondStateChangeCallback((deviceId, bondState) {
+      Get.log("OnBondState: $deviceId $bondState");
+    });
+
     super.onInit();
   }
 

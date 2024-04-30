@@ -30,6 +30,7 @@ import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import java.util.Collections
+import android.content.Context.RECEIVER_EXPORTED
 
 private const val TAG = "BlePeripheralPlugin"
 
@@ -532,10 +533,13 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
 
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
         activity = binding.activity
-        val intentFilter = IntentFilter()
-        intentFilter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
+        val intentFilter = IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED)
         intentFilter.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
-        activity.registerReceiver(broadcastReceiver, intentFilter)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            activity.registerReceiver(broadcastReceiver, intentFilter, RECEIVER_EXPORTED)
+        } else {
+            activity.registerReceiver(broadcastReceiver, intentFilter)
+        }
     }
 
     override fun onDetachedFromActivity() {
@@ -554,6 +558,8 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
         override fun onReceive(context: Context, intent: Intent) {
             val action = intent.action
             if (action == BluetoothAdapter.ACTION_STATE_CHANGED) {
+                if (!intent.hasExtra(BluetoothAdapter.EXTRA_STATE)) return
+
                 when (intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)) {
                     BluetoothAdapter.STATE_OFF -> {
                         handler.post {
@@ -570,10 +576,23 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                     else -> {}
                 }
             } else if (action == BluetoothDevice.ACTION_BOND_STATE_CHANGED) {
+                if (!intent.hasExtra(BluetoothDevice.EXTRA_BOND_STATE) || !intent.hasExtra(
+                        BluetoothDevice.EXTRA_DEVICE
+                    )
+                ) return
+
                 val state =
                     intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.ERROR)
                 val device: BluetoothDevice? =
-                    intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        intent.getParcelableExtra(
+                            BluetoothDevice.EXTRA_DEVICE,
+                            BluetoothDevice::class.java
+                        )
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+                    }
 
                 handler.post {
                     bleCallback?.onBondStateChange(
