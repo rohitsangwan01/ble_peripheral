@@ -1,3 +1,7 @@
+## 2.3.1
+
+- Fix android crash on state changes before initialization
+
 ## 2.3.0
 
 - Breaking Change: Removed setBleCentralAvailabilityCallback ( because all platforms supports characteristics subscription change now )
