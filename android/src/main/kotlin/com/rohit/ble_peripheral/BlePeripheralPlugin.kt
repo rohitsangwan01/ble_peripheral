@@ -133,7 +133,12 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
 
         handler?.post { // set up advertising setting
             localName?.let {
-                bluetoothManager?.adapter?.name = it
+                if (localName == null) {
+                    let includeDeviceName = false
+                } else {
+                    bluetoothManager?.adapter?.name = it
+                    let includeDeviceName = true
+                }
             }
             val advertiseSettings = AdvertiseSettings.Builder()
                 .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
@@ -144,11 +149,11 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
 
             val advertiseDataBuilder = AdvertiseData.Builder()
                 .setIncludeTxPowerLevel(false)
-                .setIncludeDeviceName(true)
+                .setIncludeDeviceName(includeDeviceName)
 
             val scanResponseBuilder = AdvertiseData.Builder()
                 .setIncludeTxPowerLevel(false)
-                .setIncludeDeviceName(true)
+                .setIncludeDeviceName(includeDeviceName)
 
             manufacturerData?.let {
                 if (addManufacturerDataInScanResponse) {
