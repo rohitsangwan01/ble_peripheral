@@ -51,20 +51,11 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
     private val listOfDevicesWaitingForBond = mutableListOf<String>()
     private var isAdvertising: Boolean? = null
 
-    private val devices: Set<BluetoothDevice>
-        get() {
-            val deviceSet: MutableSet<BluetoothDevice> = HashSet()
-            synchronized(bluetoothDevicesMap) { deviceSet.addAll(bluetoothDevicesMap.values) }
-            return Collections.unmodifiableSet(deviceSet)
-        }
-
-
     override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         BlePeripheralChannel.setUp(flutterPluginBinding.binaryMessenger, this)
         bleCallback = BleCallback(flutterPluginBinding.binaryMessenger)
         applicationContext = flutterPluginBinding.applicationContext
     }
-
 
     override fun initialize() {
         // if (!validatePermission()) throw Exception("Bluetooth Permission not granted")
@@ -132,14 +123,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
         }
 
         handler?.post { // set up advertising setting
-            localName?.let {
-                if (localName == null) {
-                    let includeDeviceName = false
-                } else {
-                    bluetoothManager?.adapter?.name = it
-                    let includeDeviceName = true
-                }
-            }
+            localName?.let { bluetoothManager?.adapter?.name = it }
             val advertiseSettings = AdvertiseSettings.Builder()
                 .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
                 .setConnectable(true)
@@ -149,11 +133,11 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
 
             val advertiseDataBuilder = AdvertiseData.Builder()
                 .setIncludeTxPowerLevel(false)
-                .setIncludeDeviceName(includeDeviceName)
+                .setIncludeDeviceName(localName != null)
 
             val scanResponseBuilder = AdvertiseData.Builder()
                 .setIncludeTxPowerLevel(false)
-                .setIncludeDeviceName(includeDeviceName)
+                .setIncludeDeviceName(localName != null)
 
             manufacturerData?.let {
                 if (addManufacturerDataInScanResponse) {

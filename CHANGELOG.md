@@ -1,3 +1,7 @@
+## 2.3.2
+
+- Fix local device name issue on Android [#12](https://github.com/rohitsangwan01/ble_peripheral/pull/12)
+
 ## 2.3.1
 
 - Fix android crash on state changes before initialization
