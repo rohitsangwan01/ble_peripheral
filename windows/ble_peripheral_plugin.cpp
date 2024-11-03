@@ -487,64 +487,59 @@ namespace ble_peripheral
     gattCharacteristicObject->stored_clients = currentClients;
   }
 
-  winrt::fire_and_forget BlePeripheralPlugin::ReadRequestedAsync(GattLocalCharacteristic const &localChar, GattReadRequestedEventArgs args)
-  {
-    auto deferral = args.GetDeferral();
-    auto request = co_await args.GetRequestAsync();
-    if (request == nullptr)
-    {
-      // No access allowed to the device.  Application should indicate this to the user.
-      std::cout << "No access allowed to the device" << std::endl;
-      deferral.Complete();
-      co_return;
+    winrt::fire_and_forget
+    BlePeripheralPlugin::ReadRequestedAsync(GattLocalCharacteristic const &localChar,
+                                            GattReadRequestedEventArgs args) {
+        std::string characteristicUUIDStr = to_uuidstr(localChar.Uuid());
+        auto deferral = args.GetDeferral();
+        auto request = co_await
+        args.GetRequestAsync();
+        if (request == nullptr) {
+            // No access allowed to the device.  Application should indicate this to the user.
+            std::cout << "No access allowed to the device" << std::endl;
+            deferral.Complete();
+            co_return;
+        }
+        std::string deviceId = ParseBluetoothClientId(args.Session().DeviceId().Id());
+
+        uiThreadHandler_.Post([characteristicUUIDStr, request, deferral, deviceId] {
+            auto characteristicId = characteristicUUIDStr;
+            int64_t offset = request.Offset();
+            IBuffer charValue = nullptr;
+            std::vector<uint8_t> *value_arg = nullptr;
+            if (charValue != nullptr) {
+                auto bytevc = to_bytevc(charValue);
+                value_arg = &bytevc;
+            }
+
+            bleCallback->OnReadRequest(
+                    deviceId, characteristicId, offset, value_arg,
+                    [deferral, request, characteristicUUIDStr](
+                            const ReadRequestResult *readResult) {
+
+                        if (readResult == nullptr) {
+                            std::cout << "ReadRequestResult is null" << std::endl;
+                            // request.RespondWithProtocolError(GattProtocolError::InvalidHandle());
+                        } else {
+                            // FIXME: use offset as well
+                            std::vector<uint8_t> resultVal = readResult->value();
+                            IBuffer result = from_bytevc(resultVal);
+
+                            // Send response
+                            DataWriter writer;
+                            writer.ByteOrder(ByteOrder::LittleEndian);
+                            writer.WriteBuffer(result);
+                            request.RespondWithValue(writer.DetachBuffer());
+                        }
+                        deferral.Complete();
+                    },
+                    // ErrorCallback
+                    [deferral](const FlutterError &error) {
+                        std::cout << "ErrorCallback: " << error.message() << std::endl;
+                        deferral.Complete();
+                    });
+        });
     }
-
-    std::string deviceId = ParseBluetoothClientId(args.Session().DeviceId().Id());
-
-    uiThreadHandler_.Post([localChar, request, deferral, deviceId]
-                          {
-                          auto characteristicId = guid_to_uuid(localChar.Uuid());
-                          int64_t offset = request.Offset();
-                          // FIXME: static value is always empty
-                          IBuffer charValue = localChar.StaticValue();
-                          std::vector<uint8_t> *value_arg = nullptr;
-                          if (charValue != nullptr)
-                          {
-                            auto bytevc = to_bytevc(charValue);
-                            value_arg = &bytevc;
-                          }
-
-                          bleCallback->OnReadRequest(
-                                deviceId,characteristicId, offset,value_arg,
-                                // SuccessCallback,
-                                [deferral, request, localChar](const ReadRequestResult *readResult)
-                                {
-                                  if (readResult == nullptr)
-                                  {
-                                    std::cout << "ReadRequestResult is null" << std::endl;
-                                    // request.RespondWithProtocolError(GattProtocolError::InvalidHandle());
-                                  }
-                                  else
-                                  {
-                                    // FIXME: use offset as well
-                                    std::vector<uint8_t> resultVal = readResult->value();
-                                    IBuffer result = from_bytevc(resultVal);
-
-                                    // Send response
-                                    DataWriter writer;
-                                    writer.ByteOrder(ByteOrder::LittleEndian);
-                                    writer.WriteBuffer(result);
-                                    request.RespondWithValue(writer.DetachBuffer());
-                                  }
-                                  deferral.Complete();
-                                },
-                                // ErrorCallback
-                                [deferral](const FlutterError &error)
-                                {
-                                  std::cout << "ErrorCallback: " << error.message() << std::endl;
-                                  deferral.Complete();
-                                }); });
-  }
 
   winrt::fire_and_forget BlePeripheralPlugin::WriteRequestedAsync(GattLocalCharacteristic const &localChar, GattWriteRequestedEventArgs args)
   {
