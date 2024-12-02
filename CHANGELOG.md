@@ -1,3 +1,7 @@
+## 2.3.3
+
+- Update Gradle to 8.3 [#20](https://github.com/rohitsangwan01/ble_peripheral/pull/20)
+
 ## 2.3.2
 
 - Fix local device name issue on Android [#12](https://github.com/rohitsangwan01/ble_peripheral/pull/12)

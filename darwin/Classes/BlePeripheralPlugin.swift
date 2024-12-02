@@ -33,7 +33,7 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
 
     func initialize() throws {
         // To trigger the peripheralManagerDidUpdateState callback
-        peripheralManager.isAdvertising
+        let _ = peripheralManager.isAdvertising
     }
 
     func isSupported() throws -> Bool {
