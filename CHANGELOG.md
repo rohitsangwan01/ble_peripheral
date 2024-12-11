@@ -1,3 +1,9 @@
+## 2.4.0
+
+- BreakingChange: `onCharacteristicSubscriptionChange` also send `String? name`
+- Fix Windows crash on getting read requests
+- Bump Pigeon Version
+
 ## 2.3.3
 
 - Update Gradle to 8.3 [#20](https://github.com/rohitsangwan01/ble_peripheral/pull/20)
