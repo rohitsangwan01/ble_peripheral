@@ -246,7 +246,8 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                 bleCallback?.onCharacteristicSubscriptionChange(
                     deviceAddress,
                     charUUID,
-                    false
+                    false,
+                    device.name
                 ) {}
             }
         }
@@ -334,17 +335,6 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
             ) {
                 super.onCharacteristicReadRequest(device, requestId, offset, characteristic)
                 if (gattServer == null) return
-//                val value = characteristic.value
-//                if (value != null) {
-//                    gattServer?.sendResponse(
-//                        device,
-//                        requestId,
-//                        BluetoothGatt.GATT_SUCCESS,
-//                        offset,
-//                        value
-//                    )
-//                }
-
                 handler?.post {
                     bleCallback?.onReadRequest(
                         deviceIdArg = device.address,
@@ -487,7 +477,8 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                             bleCallback?.onCharacteristicSubscriptionChange(
                                 it,
                                 characteristicId,
-                                isSubscribed
+                                isSubscribed,
+                                device.name
                             ) {}
                         }
 

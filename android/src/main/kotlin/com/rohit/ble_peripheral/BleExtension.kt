@@ -39,7 +39,7 @@ fun BleService.toGattService(): BluetoothGattService {
         if (primary) BluetoothGattService.SERVICE_TYPE_PRIMARY else BluetoothGattService.SERVICE_TYPE_SECONDARY
     )
     characteristics.forEach {
-        it?.toGattCharacteristic()?.let { characteristic ->
+        it.toGattCharacteristic().let { characteristic ->
             service.addCharacteristic(characteristic)
         }
     }
@@ -56,7 +56,7 @@ fun BleCharacteristic.toGattCharacteristic(): BluetoothGattCharacteristic {
         char.value = it
     }
     descriptors?.forEach {
-        it?.toGattDescriptor()?.let { descriptor ->
+        it.toGattDescriptor().let { descriptor ->
             char.addDescriptor(descriptor)
         }
     }
@@ -73,14 +73,14 @@ fun addCCDescriptorIfRequired(
     bleCharacteristic: BleCharacteristic,
     char: BluetoothGattCharacteristic,
 ) {
-    var haveNotifyOrIndicateProperty =
+    val haveNotifyOrIndicateProperty =
         char.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0 ||
                 char.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE != 0
     if (!haveNotifyOrIndicateProperty) return
 
     var cccdDescriptorAlreadyAdded = false
     for (descriptor in bleCharacteristic.descriptors ?: Collections.emptyList()) {
-        if (descriptor?.uuid?.lowercase() == descriptorCCUUID.lowercase()) {
+        if (descriptor.uuid.lowercase() == descriptorCCUUID.lowercase()) {
             cccdDescriptorAlreadyAdded = true
             break
         }
@@ -137,22 +137,12 @@ fun String.findService(): BluetoothGattService? {
     return null
 }
 
-fun List<Long?>.toPropertiesList(): Int {
-    return this.toValidList().fold(0) { acc, i -> acc or i.toProperties() }.toInt()
+fun List<Long>.toPropertiesList(): Int {
+    return this.map { it.toInt() }.fold(0) { acc, i -> acc or i.toProperties() }.toInt()
 }
 
-fun List<Long?>.toPermissionsList(): Int {
-    return this.toValidList().fold(0) { acc, i -> acc or i.toPermission() }.toInt()
-}
-
-fun List<Long?>.toValidList(): List<Int> {
-    val data: MutableList<Int> = mutableListOf()
-    val totalSize = this.size - 1
-    for (i in 0..totalSize) {
-        val value: Int? = this[i] as Int?
-        value?.let { data.add(it) }
-    }
-    return data
+fun List<Long>.toPermissionsList(): Int {
+    return this.map { it.toInt() }.fold(0) { acc, i -> acc or i.toPermission() }.toInt()
 }
 
 fun Int.toProperties(): Int {
