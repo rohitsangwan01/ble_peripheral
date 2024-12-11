@@ -24,25 +24,31 @@ enum BondState { bonding, bonded, none }
 class BleService {
   String uuid;
   bool primary;
-  List<BleCharacteristic?> characteristics;
+  List<BleCharacteristic> characteristics;
   BleService(this.uuid, this.primary, this.characteristics);
 }
 
 // Use enums instead of int after fixing: https://github.com/flutter/flutter/issues/133728
 class BleCharacteristic {
   String uuid;
-  List<int?> properties;
-  List<int?> permissions;
-  List<BleDescriptor?>? descriptors;
+  List<int> properties;
+  List<int> permissions;
+  List<BleDescriptor>? descriptors;
   Uint8List? value;
-  BleCharacteristic(this.uuid, this.value, this.descriptors, this.properties,
-      this.permissions);
+  
+  BleCharacteristic(
+    this.uuid,
+    this.value,
+    this.descriptors,
+    this.properties,
+    this.permissions,
+  );
 }
 
 class BleDescriptor {
   String uuid;
   Uint8List? value;
-  List<int?>? permissions;
+  List<int>? permissions;
   BleDescriptor(this.uuid, this.value, this.permissions);
 }
 
@@ -123,6 +129,7 @@ abstract class BleCallback {
     String deviceId,
     String characteristicId,
     bool isSubscribed,
+    String? name,
   );
 
   void onAdvertisingStatusUpdate(bool advertising, String? error);

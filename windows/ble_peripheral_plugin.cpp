@@ -245,7 +245,7 @@ namespace ble_peripheral
         auto charProperties = characteristic.properties();
         for (flutter::EncodableValue propertyEncoded : charProperties)
         {
-          auto property = std::get<int>(propertyEncoded);
+          int property = static_cast<int>(std::get<int64_t>(propertyEncoded));
           charParameters.CharacteristicProperties(charParameters.CharacteristicProperties() | toGattCharacteristicProperties(property));
         }
 
@@ -253,7 +253,7 @@ namespace ble_peripheral
         auto charPermissions = characteristic.permissions();
         for (flutter::EncodableValue permissionEncoded : charPermissions)
         {
-          auto blePermission = toBlePermission(std::get<int>(permissionEncoded));
+          auto blePermission = toBlePermission(static_cast<int>(std::get<int64_t>(permissionEncoded)));
           switch (blePermission)
           {
           case BlePermission::readable:
@@ -301,11 +301,11 @@ namespace ble_peripheral
           auto descriptorUuid = descriptor.uuid();
           auto descriptorParameters = GattLocalDescriptorParameters();
 
-          //  Add descriptor permissions
+          // Add descriptor permissions
           flutter::EncodableList descriptorPermissions = descriptor.permissions() == nullptr ? flutter::EncodableList() : *descriptor.permissions();
           for (flutter::EncodableValue permissionsEncoded : descriptorPermissions)
           {
-            auto blePermission = toBlePermission(std::get<int>(permissionsEncoded));
+            auto blePermission = toBlePermission(static_cast<int>(std::get<int64_t>(permissionsEncoded)));
             switch (blePermission)
             {
             case BlePermission::readable:
@@ -404,7 +404,7 @@ namespace ble_peripheral
   }
 
   /// Characteristic Listeners
-  void BlePeripheralPlugin::SubscribedClientsChanged(GattLocalCharacteristic const &localChar, IInspectable const &)
+  winrt::fire_and_forget BlePeripheralPlugin::SubscribedClientsChanged(GattLocalCharacteristic const &localChar, IInspectable const &)
   {
     auto characteristicId = guid_to_uuid(localChar.Uuid());
 
@@ -414,7 +414,7 @@ namespace ble_peripheral
     if (gattCharacteristicObject == nullptr)
     {
       std::cout << "Failed to get char " << characteristicId << std::endl;
-      return;
+      co_return;
     }
 
     // Compare Stored clients and New clients
@@ -438,13 +438,23 @@ namespace ble_peripheral
       {
         // oldClient is not in currentClients, so it was removed
         std::string deviceIdArg = ParseBluetoothClientId(oldClient.Session().DeviceId().Id());
-        uiThreadHandler_.Post([deviceIdArg, characteristicId]
-                              {
-                                bleCallback->OnCharacteristicSubscriptionChange(
-                                    deviceIdArg, characteristicId, false,
-                                    SuccessCallback, ErrorCallback);
-                                // Notify subscription change
-                              });
+        try
+        {
+          auto deviceInfo = co_await DeviceInformation::CreateFromIdAsync(oldClient.Session().DeviceId().Id());
+          auto deviceName = winrt::to_string(deviceInfo.Name());
+          uiThreadHandler_.Post([deviceName, deviceIdArg, characteristicId]
+                                {
+                                  bleCallback->OnCharacteristicSubscriptionChange(
+                                      deviceIdArg, characteristicId, false, &deviceName,
+                                      SuccessCallback, ErrorCallback);
+                                  // Notify subscription change
+                                });
+          // Point to the local variable
+        }
+        catch (...)
+        {
+          std::cerr << "Failed to retrieve device name" << std::endl;
+        }
       }
     }
 
@@ -465,13 +475,24 @@ namespace ble_peripheral
       {
         // currentClient is not in oldClients, so it was added
         std::string deviceIdArg = ParseBluetoothClientId(currentClient.Session().DeviceId().Id());
-        uiThreadHandler_.Post([deviceIdArg, characteristicId]
-                              {
-                                bleCallback->OnCharacteristicSubscriptionChange(
-                                    deviceIdArg, characteristicId, true,
-                                    SuccessCallback, ErrorCallback);
-                                // Notify subscription change
-                              });
+
+        try
+        {
+          auto deviceInfo = co_await DeviceInformation::CreateFromIdAsync(currentClient.Session().DeviceId().Id());
+          auto deviceName = winrt::to_string(deviceInfo.Name());
+          uiThreadHandler_.Post([deviceName, deviceIdArg, characteristicId]
+                                {
+                                  bleCallback->OnCharacteristicSubscriptionChange(
+                                      deviceIdArg, characteristicId, true, &deviceName,
+                                      SuccessCallback, ErrorCallback);
+                                  // Notify subscription change
+                                });
+          // Point to the local variable
+        }
+        catch (...)
+        {
+          std::cerr << "Failed to retrieve device name" << std::endl;
+        }
 
         int64_t maxPuid = currentClient.Session().MaxPduSize();
         uiThreadHandler_.Post([deviceIdArg, maxPuid]

@@ -85,7 +85,7 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
         var advertisementData: [String: Any] = [
             CBAdvertisementDataServiceUUIDsKey: cbServices,
         ]
-        if(localName != nil){
+        if localName != nil {
             advertisementData[CBAdvertisementDataLocalNameKey] = localName
         }
 //        if let manufacturerData = manufacturerData {
@@ -145,7 +145,10 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
         if !cbCentrals.contains(where: { $0.identifier == central.identifier }) {
             cbCentrals.append(central)
         }
-        bleCallback.onCharacteristicSubscriptionChange(deviceId: central.identifier.uuidString, characteristicId: characteristic.uuid.uuidString, isSubscribed: true) { _ in }
+        bleCallback.onCharacteristicSubscriptionChange(
+            deviceId: central.identifier.uuidString,
+            characteristicId: characteristic.uuid.uuidString,
+            isSubscribed: true, name: nil) { _ in }
         // Update MTU for this device
         bleCallback.onMtuChange(deviceId: central.identifier.uuidString, mtu: Int64(central.maximumUpdateValueLength)) { _ in }
     }
@@ -153,7 +156,10 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
     internal nonisolated func peripheralManager(_: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
         // Remove central from the list
         cbCentrals.removeAll { $0.identifier == central.identifier }
-        bleCallback.onCharacteristicSubscriptionChange(deviceId: central.identifier.uuidString, characteristicId: characteristic.uuid.uuidString, isSubscribed: false) { _ in }
+        bleCallback.onCharacteristicSubscriptionChange(
+            deviceId: central.identifier.uuidString,
+            characteristicId: characteristic.uuid.uuidString,
+            isSubscribed: false, name: nil) { _ in }
     }
 
     internal nonisolated func peripheralManager(_: CBPeripheralManager, didReceiveRead request: CBATTRequest) {

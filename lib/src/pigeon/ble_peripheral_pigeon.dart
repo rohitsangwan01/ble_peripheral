@@ -18,7 +18,7 @@ class BlePeripheralPigeon extends BlePeripheralInterface {
   @override
   Future initialize() async {
     await _channel.initialize();
-    BleCallback.setup(_callbackHandler);
+    BleCallback.setUp(_callbackHandler);
   }
 
   /// check if blePeripheral is supported on the device
@@ -73,11 +73,7 @@ class BlePeripheralPigeon extends BlePeripheralInterface {
 
   /// Get list of services added to the peripheral
   @override
-  Future<List<String>> getServices() async {
-    return List<String>.from(
-      (await _channel.getServices()).where((e) => e != null).toList(),
-    );
-  }
+  Future<List<String>> getServices() => _channel.getServices();
 
   /// To update the value of a characteristic
   @override

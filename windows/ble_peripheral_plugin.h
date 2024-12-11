@@ -98,7 +98,7 @@ namespace ble_peripheral
         GattCharacteristicObject *FindGattCharacteristicObject(std::string characteristicId);
 
         void ServiceProvider_AdvertisementStatusChanged(GattServiceProvider const &sender, GattServiceProviderAdvertisementStatusChangedEventArgs const &);
-        void SubscribedClientsChanged(GattLocalCharacteristic const &sender, IInspectable const &);
+        winrt::fire_and_forget SubscribedClientsChanged(GattLocalCharacteristic const &sender, IInspectable const &);
         winrt::fire_and_forget ReadRequestedAsync(GattLocalCharacteristic const &, GattReadRequestedEventArgs args);
         winrt::fire_and_forget WriteRequestedAsync(GattLocalCharacteristic const &, GattWriteRequestedEventArgs args);
         std::string ParseBluetoothError(BluetoothError error);
@@ -116,14 +116,14 @@ namespace ble_peripheral
         ErrorOr<flutter::EncodableList> GetServices();
         std::optional<FlutterError> StartAdvertising(
             const flutter::EncodableList &services,
-            const std::string* local_name,
+            const std::string *local_name,
             const int64_t *timeout,
             const ManufacturerData *manufacturer_data,
             bool add_manufacturer_data_in_scan_response);
         std::optional<FlutterError> UpdateCharacteristic(
-            const std::string& characteristic_id,
-            const std::vector<uint8_t>& value,
-            const std::string* device_id);
+            const std::string &characteristic_id,
+            const std::vector<uint8_t> &value,
+            const std::string *device_id);
     };
 
 } // namespace ble_peripheral

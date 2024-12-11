@@ -30,7 +30,7 @@ extension BleService {
             primary: primary
         )
         let chars = characteristics.compactMap { bleChar in
-            bleChar?.toCBChar()
+            bleChar.toCBChar()
         }
         if !chars.isEmpty {
             service.characteristics = chars
@@ -54,10 +54,10 @@ extension BleDescriptor {
 extension BleCharacteristic {
     func toCBChar() -> CBMutableCharacteristic {
         let properties: [CBCharacteristicProperties] = self.properties.compactMap { int64 in
-            int64?.toCBCharacteristicProperties()
+            int64.toCBCharacteristicProperties()
         }
         let permissions: [CBAttributePermissions] = self.permissions.compactMap { int64 in
-            int64?.toCBAttributePermissions()
+            int64.toCBAttributePermissions()
         }
 
         let combinedProperties = properties.reduce(CBCharacteristicProperties()) { $0.union($1) }
@@ -70,7 +70,7 @@ extension BleCharacteristic {
             permissions: combinedPermissions
         )
         char.descriptors = descriptors?.compactMap { desc in
-            desc?.toCBMutableDescriptor()
+            desc.toCBMutableDescriptor()
         }
         // Add local reference of this characteristic
         characteristicsList.removeAll { $0.uuid.uuidString.lowercased() == char.uuid.uuidString.lowercased() }
@@ -85,7 +85,7 @@ extension String {
             ch.uuid.uuidString == self
         }
     }
-    
+
     func findService() -> CBMutableService? {
         return servicesList.first { ch in
             ch.uuid.uuidString == self

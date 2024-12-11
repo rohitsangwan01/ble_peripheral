@@ -61,20 +61,25 @@ class HomeController extends GetxController {
       Get.log("AdvertingStarted: $advertising, Error: $error");
     });
 
-    BlePeripheral.setCharacteristicSubscriptionChangeCallback(
-        (String deviceId, String characteristicId, bool isSubscribed) {
+    BlePeripheral.setCharacteristicSubscriptionChangeCallback((
+      String deviceId,
+      String characteristicId,
+      bool isSubscribed,
+      String? name,
+    ) {
       Get.log(
-        "onCharacteristicSubscriptionChange: $deviceId : $characteristicId $isSubscribed",
+        "onCharacteristicSubscriptionChange: $deviceId : $characteristicId $isSubscribed Name: $name",
       );
+      String deviceName = "${name ?? deviceId} subscribed to $characteristicId";
       if (isSubscribed) {
-        if (!devices.any((element) => element == deviceId)) {
-          devices.add(deviceId);
-          Get.log("$deviceId adding");
+        if (!devices.any((element) => element == deviceName)) {
+          devices.add(deviceName);
+          Get.log("$deviceName adding");
         } else {
-          Get.log("$deviceId already exists");
+          Get.log("$deviceName already exists");
         }
       } else {
-        devices.removeWhere((element) => element == deviceId);
+        devices.removeWhere((element) => element == deviceName);
       }
     });
 
