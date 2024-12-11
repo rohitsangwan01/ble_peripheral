@@ -510,6 +510,16 @@ namespace ble_peripheral
 
   winrt::fire_and_forget BlePeripheralPlugin::ReadRequestedAsync(GattLocalCharacteristic const &localChar, GattReadRequestedEventArgs args)
   {
+    std::string characteristicId = to_uuidstr(localChar.Uuid());
+    std::vector<uint8_t> *value_arg = nullptr;
+    IBuffer charValue = localChar.StaticValue();
+    // IBuffer charValue = nullptr;
+    if (charValue != nullptr)
+    {
+      auto bytevc = to_bytevc(charValue);
+      value_arg = &bytevc;
+    }
+    
     auto deferral = args.GetDeferral();
     auto request = co_await args.GetRequestAsync();
     if (request == nullptr)
@@ -519,17 +529,10 @@ namespace ble_peripheral
       deferral.Complete();
       co_return;
     }
-    std::string characteristicId = to_uuidstr(localChar.Uuid());
+
     std::string deviceId = ParseBluetoothClientId(args.Session().DeviceId().Id());
     int64_t offset = request.Offset();
-    std::vector<uint8_t> *value_arg = nullptr;
-    // IBuffer charValue = localChar.StaticValue();
-    IBuffer charValue = nullptr;
-    if (charValue != nullptr)
-    {
-      auto bytevc = to_bytevc(charValue);
-      value_arg = &bytevc;
-    }
+  
     uiThreadHandler_.Post([deviceId, characteristicId, offset, value_arg, deferral, request]
                           {
                             bleCallback->OnReadRequest(
