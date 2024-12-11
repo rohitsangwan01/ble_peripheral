@@ -127,7 +127,7 @@ namespace ble_peripheral
 
   std::optional<FlutterError> BlePeripheralPlugin::StartAdvertising(
       const flutter::EncodableList &services,
-      const std::string* local_name,
+      const std::string *local_name,
       const int64_t *timeout,
       const ManufacturerData *manufacturer_data,
       bool add_manufacturer_data_in_scan_response)
@@ -194,9 +194,9 @@ namespace ble_peripheral
   }
 
   std::optional<FlutterError> BlePeripheralPlugin::UpdateCharacteristic(
-      const std::string& characteristic_id,
-      const std::vector<uint8_t>& value,
-      const std::string* device_id)
+      const std::string &characteristic_id,
+      const std::vector<uint8_t> &value,
+      const std::string *device_id)
   {
     GattCharacteristicObject *gattCharacteristicObject = FindGattCharacteristicObject(characteristic_id);
     if (gattCharacteristicObject == nullptr)
@@ -498,26 +498,23 @@ namespace ble_peripheral
       deferral.Complete();
       co_return;
     }
-
+    std::string characteristicId = to_uuidstr(localChar.Uuid());
     std::string deviceId = ParseBluetoothClientId(args.Session().DeviceId().Id());
-
-    uiThreadHandler_.Post([localChar, request, deferral, deviceId]
+    int64_t offset = request.Offset();
+    std::vector<uint8_t> *value_arg = nullptr;
+    // IBuffer charValue = localChar.StaticValue();
+    IBuffer charValue = nullptr;
+    if (charValue != nullptr)
+    {
+      auto bytevc = to_bytevc(charValue);
+      value_arg = &bytevc;
+    }
+    uiThreadHandler_.Post([deviceId, characteristicId, offset, value_arg, deferral, request]
                           {
-                          auto characteristicId = guid_to_uuid(localChar.Uuid());
-                          int64_t offset = request.Offset();
-                          // FIXME: static value is always empty
-                          IBuffer charValue = localChar.StaticValue();
-                          std::vector<uint8_t> *value_arg = nullptr;
-                          if (charValue != nullptr)
-                          {
-                            auto bytevc = to_bytevc(charValue);
-                            value_arg = &bytevc;
-                          }
-
-                          bleCallback->OnReadRequest(
-                                deviceId,characteristicId, offset,value_arg,
+                            bleCallback->OnReadRequest(
+                                deviceId, characteristicId, offset, value_arg,
                                 // SuccessCallback,
-                                [deferral, request, localChar](const ReadRequestResult *readResult)
+                                [deferral, request](const ReadRequestResult *readResult)
                                 {
                                   if (readResult == nullptr)
                                   {
@@ -543,7 +540,9 @@ namespace ble_peripheral
                                 {
                                   std::cout << "ErrorCallback: " << error.message() << std::endl;
                                   deferral.Complete();
-                                }); });
+                                });
+                            // Handle readRequest result
+                          });
   }
 
   winrt::fire_and_forget BlePeripheralPlugin::WriteRequestedAsync(GattLocalCharacteristic const &localChar, GattWriteRequestedEventArgs args)
