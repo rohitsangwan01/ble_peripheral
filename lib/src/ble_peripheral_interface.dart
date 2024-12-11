@@ -93,7 +93,7 @@ typedef BleStateCallback = void Function(bool state);
 typedef BondStateCallback = void Function(String deviceId, BondState bondState);
 
 typedef CharacteristicSubscriptionChangeCallback = void Function(
-    String deviceId, String characteristicId, bool isSubscribed);
+    String deviceId, String characteristicId, bool isSubscribed, String? name);
 
 typedef ConnectionStateChangeCallback = void Function(
     String deviceId, bool connected);

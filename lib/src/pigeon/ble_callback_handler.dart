@@ -33,9 +33,17 @@ class BleCallbackHandler extends BleCallback {
 
   @override
   void onCharacteristicSubscriptionChange(
-      String deviceId, String characteristicId, bool isSubscribed) {
+    String deviceId,
+    String characteristicId,
+    bool isSubscribed,
+    String? name,
+  ) {
     characteristicSubscriptionChange?.call(
-        deviceId, characteristicId, isSubscribed);
+      deviceId,
+      characteristicId,
+      isSubscribed,
+      name,
+    );
   }
 
   @override
