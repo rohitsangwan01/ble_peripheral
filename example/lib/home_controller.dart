@@ -1,15 +1,28 @@
 // ignore_for_file: non_constant_identifier_names
 
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:ble_peripheral/ble_peripheral.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 
+class BleClient {
+  String? name;
+  String deviceId;
+  Set<String> subscribedChars;
+
+  BleClient({
+    required this.name,
+    required this.deviceId,
+    required this.subscribedChars,
+  });
+}
+
 class HomeController extends GetxController {
   RxBool isAdvertising = false.obs;
   RxBool isBleOn = false.obs;
-  RxList<String> devices = <String>[].obs;
+  RxList<BleClient> devices = <BleClient>[].obs;
 
   String get deviceName => switch (defaultTargetPlatform) {
         TargetPlatform.android => "BleDroid",
@@ -70,17 +83,28 @@ class HomeController extends GetxController {
       Get.log(
         "onCharacteristicSubscriptionChange: $deviceId : $characteristicId $isSubscribed Name: $name",
       );
-      String deviceName = "${name ?? deviceId} subscribed to $characteristicId";
+
+      int? index = devices.indexWhere((e) => e.deviceId == deviceId);
       if (isSubscribed) {
-        if (!devices.any((element) => element == deviceName)) {
-          devices.add(deviceName);
-          Get.log("$deviceName adding");
+        if (index != -1) {
+          devices[index].subscribedChars.add(characteristicId);
         } else {
-          Get.log("$deviceName already exists");
+          devices.add(BleClient(
+            name: name,
+            deviceId: deviceId,
+            subscribedChars: {characteristicId},
+          ));
         }
       } else {
-        devices.removeWhere((element) => element == deviceName);
+        if (index != -1) {
+          devices[index].subscribedChars.remove(characteristicId);
+          if (devices[index].subscribedChars.isEmpty) {
+            devices.removeAll { $0.identifier == central.identifier }
+
+          }
+        }
       }
+      devices.refresh();
     });
 
     BlePeripheral.setReadRequestCallback(
@@ -192,9 +216,10 @@ class HomeController extends GetxController {
   /// Update characteristic value, to all the devices which are subscribed to it
   void updateCharacteristic() async {
     try {
-      await BlePeripheral.updateCharacteristic(
+      var value = "Hii ${Random().nextInt(100)}";
+      BlePeripheral.updateCharacteristic(
         characteristicId: characteristicTest,
-        value: utf8.encode("Test Data"),
+        value: utf8.encode(value),
       );
     } catch (e) {
       Get.log("UpdateCharacteristicError: $e");

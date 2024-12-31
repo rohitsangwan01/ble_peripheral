@@ -15,10 +15,6 @@
 import CoreBluetooth
 import Foundation
 
-enum CustomError: Error {
-    case notFound(String)
-}
-
 /// local list of characteristic
 var characteristicsList = [CBMutableCharacteristic]()
 var servicesList = [CBMutableService]()
@@ -198,9 +194,15 @@ extension Data {
 
 extension [Int64?] {
     func toData() -> Data {
-        let finalArray = self.compactMap { data in
+        let finalArray = compactMap { data in
             data
         }
         return Data(bytes: finalArray, count: finalArray.count)
     }
+}
+
+struct CharacteristicUpdate {
+    let characteristic: CBMutableCharacteristic
+    let data: Data
+    let central: CBCentral?
 }
