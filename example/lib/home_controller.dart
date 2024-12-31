@@ -99,7 +99,8 @@ class HomeController extends GetxController {
         if (index != -1) {
           devices[index].subscribedChars.remove(characteristicId);
           if (devices[index].subscribedChars.isEmpty) {
-            devices.remove(index);
+            devices.removeAll { $0.identifier == central.identifier }
+
           }
         }
       }
