@@ -196,10 +196,8 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                 )
             }
         } else {
-            Log.d(TAG, "Sending..: ${bluetoothDevicesMap.size}")
             bluetoothDevicesMap.forEach { (_, device) ->
                 handler?.post {
-                    Log.d(TAG, "toDevice..")
                     gattServer?.notifyCharacteristicChanged(
                         device,
                         char,
@@ -281,20 +279,11 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
         }
     }
 
-
     private fun onBonded(device: BluetoothDevice) {
-        Log.d(TAG, " Device bonded")
-//        if (gattServer?.getConnectionState(device) != BluetoothGatt.STATE_CONNECTED) {
-//            handler?.post {
-//                gattServer?.connect(device, false)
-//            }
-//        }
         synchronized(bluetoothDevicesMap) {
-            Log.d(TAG, " Adding device to map")
             bluetoothDevicesMap.put(device.address, device)
         }
     }
-
 
     private val gattServerCallback: BluetoothGattServerCallback =
         object : BluetoothGattServerCallback() {
@@ -306,9 +295,8 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                 super.onConnectionStateChange(device, status, newState)
                 when (newState) {
                     BluetoothProfile.STATE_CONNECTED -> {
-                        Log.d(TAG, "Device Connected")
                         if (device.bondState == BluetoothDevice.BOND_NONE) {
-                            Log.d(TAG, "Device Not bonded")
+                            Log.d(TAG, "Device Not bonded, Trying to bond")
                             // Wait for bonding
                             listOfDevicesWaitingForBond.add(device.address)
                             device.createBond()
@@ -321,7 +309,6 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                     BluetoothProfile.STATE_DISCONNECTED -> {
                         val deviceAddress = device.address
                         synchronized(bluetoothDevicesMap) {
-                            Log.d(TAG, " Removing from map");
                             bluetoothDevicesMap.remove(deviceAddress)
                         }
                         onConnectionUpdate(device, status, newState)
@@ -599,7 +586,6 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                         state.toBondState(),
                     ) {}
                 }
-                Log.d(TAG, "Bond state changed $state")
                 if (listOfDevicesWaitingForBond.contains(device.address)) {
                     if (bluetoothManager?.getConnectionState(
                             device,
