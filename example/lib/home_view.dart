@@ -89,7 +89,13 @@ class HomeView extends GetView<HomeController> {
                       onPressed: () async {
                         controller.updateCharacteristic();
                       },
-                      child: const Text('Update Characteristic value'),
+                      child: const Text('Update Char'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () async {
+                        controller.getSubscribedClients();
+                      },
+                      child: const Text('Subscribed Clients'),
                     ),
                   ],
                 ),

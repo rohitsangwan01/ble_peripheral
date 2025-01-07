@@ -75,6 +75,10 @@ class BlePeripheralPigeon extends BlePeripheralInterface {
   @override
   Future<List<String>> getServices() => _channel.getServices();
 
+  @override
+  Future<List<SubscribedClient>> getSubscribedClients() =>
+      _channel.getSubscribedClients();
+
   /// To update the value of a characteristic
   @override
   Future<void> updateCharacteristic({

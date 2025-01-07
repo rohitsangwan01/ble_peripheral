@@ -47,6 +47,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
     private var bluetoothLeAdvertiser: BluetoothLeAdvertiser? = null
     private var gattServer: BluetoothGattServer? = null
     private val bluetoothDevicesMap: MutableMap<String, BluetoothDevice> = HashMap()
+    private val subscribedCharDevicesMap: MutableMap<String, MutableList<String>> = HashMap()
     private val emptyBytes = byteArrayOf()
     private val listOfDevicesWaitingForBond = mutableListOf<String>()
     private var isAdvertising: Boolean? = null
@@ -83,11 +84,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
 
     override fun isSupported(): Boolean {
         val bluetoothAdapter = bluetoothManager?.adapter ?: return false
-        // if (!bluetoothAdapter.isEnabled) throw UnsupportedOperationException("Bluetooth is disabled.")
-        if (!bluetoothAdapter.isMultipleAdvertisementSupported) throw UnsupportedOperationException(
-            "Bluetooth LE Advertising not supported on this device."
-        )
-        return true
+        return bluetoothAdapter.isMultipleAdvertisementSupported
     }
 
     override fun addService(service: BleService) {
@@ -108,6 +105,10 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
         return gattServer?.services?.map {
             it.uuid.toString()
         } ?: emptyList()
+    }
+
+    override fun getSubscribedClients(): List<SubscribedClient> {
+        return subscribedCharDevicesMap.map { data -> SubscribedClient(data.key, data.value) }
     }
 
     override fun startAdvertising(
@@ -483,14 +484,24 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                         }
 
                         // Update subscribed char list
-                        val charList: MutableList<String> =
-                            subscribedCharDevicesMap[it] ?: mutableListOf()
+                        val charList = subscribedCharDevicesMap[it] ?: mutableListOf()
+
                         if (isSubscribed) {
-                            charList.add(characteristicId)
+                            if (!charList.contains(characteristicId)) {
+                                charList.add(characteristicId)
+                            }
                         } else if (charList.contains(characteristicId)) {
-                            charList.remove(characteristicId)
+                            if (charList.contains(characteristicId)) {
+                                charList.remove(characteristicId)
+                            }
                         }
-                        subscribedCharDevicesMap[it] = charList
+
+                        if (charList.isEmpty()) {
+                            // No more subscribed characteristics
+                            subscribedCharDevicesMap.remove(it)
+                        } else {
+                            subscribedCharDevicesMap[it] = charList
+                        }
                     }
 
                 }

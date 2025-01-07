@@ -27,12 +27,12 @@ await BlePeripheral.addService(
       BleCharacteristic(
         uuid: "00002A19-0000-1000-8000-00805F9B34FB",
         properties: [
-          CharacteristicProperties.read.index,
-          CharacteristicProperties.notify.index
+          CharacteristicProperties.read,
+          CharacteristicProperties.notify
         ],
         value: null,
         permissions: [
-          AttributePermissions.readable.index
+          AttributePermissions.readable
         ],
       ),
     ],

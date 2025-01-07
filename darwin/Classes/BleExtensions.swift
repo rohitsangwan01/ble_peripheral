@@ -49,11 +49,11 @@ extension BleDescriptor {
 
 extension BleCharacteristic {
     func toCBChar() -> CBMutableCharacteristic {
-        let properties: [CBCharacteristicProperties] = self.properties.compactMap { int64 in
-            int64.toCBCharacteristicProperties()
+        let properties: [CBCharacteristicProperties] = self.properties.compactMap { property in
+            property.toCBCharacteristicProperties()
         }
-        let permissions: [CBAttributePermissions] = self.permissions.compactMap { int64 in
-            int64.toCBAttributePermissions()
+        let permissions: [CBAttributePermissions] = self.permissions.compactMap { permission in
+            permission.toCBAttributePermissions()
         }
 
         let combinedProperties = properties.reduce(CBCharacteristicProperties()) { $0.union($1) }
@@ -89,49 +89,49 @@ extension String {
     }
 }
 
-extension Int64 {
+extension CharacteristicProperties {
     func toCBCharacteristicProperties() -> CBCharacteristicProperties? {
         switch self {
-        case 0:
+        case CharacteristicProperties.broadcast:
             return CBCharacteristicProperties.broadcast
-        case 1:
+        case CharacteristicProperties.read:
             return CBCharacteristicProperties.read
-        case 2:
+        case CharacteristicProperties.writeWithoutResponse:
             return CBCharacteristicProperties.writeWithoutResponse
-        case 3:
+        case CharacteristicProperties.write:
             return CBCharacteristicProperties.write
-        case 4:
+        case CharacteristicProperties.notify:
             return CBCharacteristicProperties.notify
-        case 5:
+        case CharacteristicProperties.indicate:
             return CBCharacteristicProperties.indicate
-        case 6:
+        case CharacteristicProperties.authenticatedSignedWrites:
             return CBCharacteristicProperties.authenticatedSignedWrites
-        case 7:
+        case CharacteristicProperties.extendedProperties:
             return CBCharacteristicProperties.extendedProperties
-        case 8:
+        case CharacteristicProperties.notifyEncryptionRequired:
             return CBCharacteristicProperties.notifyEncryptionRequired
-        case 9:
+        case CharacteristicProperties.indicateEncryptionRequired:
             return CBCharacteristicProperties.indicateEncryptionRequired
-        default:
-            return nil
         }
     }
+}
 
+extension AttributePermissions {
     func toCBAttributePermissions() -> CBAttributePermissions? {
         switch self {
-        case 0:
+        case AttributePermissions.readable:
             return CBAttributePermissions.readable
-        case 1:
+        case AttributePermissions.writeable:
             return CBAttributePermissions.writeable
-        case 2:
+        case AttributePermissions.readEncryptionRequired:
             return CBAttributePermissions.readEncryptionRequired
-        case 3:
+        case AttributePermissions.writeEncryptionRequired:
             return CBAttributePermissions.writeEncryptionRequired
-        default:
-            return nil
         }
     }
+}
 
+extension Int64 {
     func toCBATTErrorCode() -> CBATTError.Code {
         switch self {
         case 0:

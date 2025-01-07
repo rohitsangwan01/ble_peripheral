@@ -1,3 +1,11 @@
+## 2.5.0
+
+- Breaking Change: now use enums instead of integers for characteristic properties and permissions
+- Add new api `getSubscribedClients`
+- Improve Android connection
+- On Android, `isSupported` will return false if not supported instead of throwing error
+- Bump Pigeon Version
+
 ## 2.4.0
 
 - BreakingChange: `onCharacteristicSubscriptionChange` also send `String? name`

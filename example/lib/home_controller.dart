@@ -151,8 +151,8 @@ class HomeController extends GetxController {
         uuid: "00002908-0000-1000-8000-00805F9B34FB",
         value: Uint8List.fromList([0, 1]),
         permissions: [
-          AttributePermissions.readable.index,
-          AttributePermissions.writeable.index
+          AttributePermissions.readable,
+          AttributePermissions.writeable
         ],
       );
 
@@ -164,11 +164,11 @@ class HomeController extends GetxController {
             BleCharacteristic(
               uuid: characteristicBatteryLevel,
               properties: [
-                CharacteristicProperties.read.index,
-                CharacteristicProperties.notify.index
+                CharacteristicProperties.read,
+                CharacteristicProperties.notify
               ],
               value: null,
-              permissions: [AttributePermissions.readable.index],
+              permissions: [AttributePermissions.readable],
             ),
           ],
         ),
@@ -182,15 +182,15 @@ class HomeController extends GetxController {
             BleCharacteristic(
               uuid: characteristicTest,
               properties: [
-                CharacteristicProperties.read.index,
-                CharacteristicProperties.notify.index,
-                CharacteristicProperties.write.index,
+                CharacteristicProperties.read,
+                CharacteristicProperties.notify,
+                CharacteristicProperties.write,
               ],
               descriptors: [notificationControlDescriptor],
               value: null,
               permissions: [
-                AttributePermissions.readable.index,
-                AttributePermissions.writeable.index
+                AttributePermissions.readable,
+                AttributePermissions.writeable
               ],
             ),
           ],
@@ -215,13 +215,31 @@ class HomeController extends GetxController {
   /// Update characteristic value, to all the devices which are subscribed to it
   void updateCharacteristic() async {
     try {
-      var value = "Hii ${Random().nextInt(100)}";
-      BlePeripheral.updateCharacteristic(
-        characteristicId: characteristicTest,
-        value: utf8.encode(value),
-      );
+      for (BleClient client in devices) {
+        var value = "Hii ${Random().nextInt(100)}";
+        BlePeripheral.updateCharacteristic(
+          characteristicId: characteristicTest,
+          value: utf8.encode(value),
+          deviceId: client.deviceId,
+        );
+      }
     } catch (e) {
       Get.log("UpdateCharacteristicError: $e");
     }
+  }
+
+  void getSubscribedClients() async {
+    List<SubscribedClient> clients = await BlePeripheral.getSubscribedClients();
+    if (clients.isEmpty) {
+      Get.log("No clients subscribed");
+      return;
+    }
+
+    Get.log(clients
+        .map((e) => {
+              "DeviceId": e.deviceId,
+              "SubscribedChars": e.subscribedCharacteristics
+            })
+        .join(", "));
   }
 }

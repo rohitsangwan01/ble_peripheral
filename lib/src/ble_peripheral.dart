@@ -4,7 +4,6 @@ import 'package:ble_peripheral/src/ble_peripheral_interface.dart';
 import 'package:ble_peripheral/src/generated/ble_peripheral.g.dart';
 import 'package:ble_peripheral/src/pigeon/ble_peripheral_pigeon.dart';
 import 'package:flutter/foundation.dart';
-export 'package:ble_peripheral/src/models/ble_enums.dart';
 export 'package:ble_peripheral/src/generated/ble_peripheral.g.dart';
 
 /// [BlePeripheral] is the main class to interact with the BLE peripheral plugin.
@@ -55,7 +54,12 @@ class BlePeripheral {
   /// Get list of services added to the peripheral
   static Future<List<String>> getServices() => _platform.getServices();
 
+  /// Get list of clients subscribed to characteristics
+  static Future<List<SubscribedClient>> getSubscribedClients() =>
+      _platform.getSubscribedClients();
+
   /// To update the value of a characteristic
+  /// if deviceId is null then the value will be updated to all the devices which are subscribed to it
   static Future<void> updateCharacteristic({
     required String characteristicId,
     required Uint8List value,

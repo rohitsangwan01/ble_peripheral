@@ -20,6 +20,26 @@ import 'package:pigeon/pigeon.dart';
 /// Enums
 enum BondState { bonding, bonded, none }
 
+enum CharacteristicProperties {
+  broadcast,
+  read,
+  writeWithoutResponse,
+  write,
+  notify,
+  indicate,
+  authenticatedSignedWrites,
+  extendedProperties,
+  notifyEncryptionRequired,
+  indicateEncryptionRequired
+}
+
+enum AttributePermissions {
+  readable,
+  writeable,
+  readEncryptionRequired,
+  writeEncryptionRequired
+}
+
 /// Models
 class BleService {
   String uuid;
@@ -28,14 +48,19 @@ class BleService {
   BleService(this.uuid, this.primary, this.characteristics);
 }
 
-// Use enums instead of int after fixing: https://github.com/flutter/flutter/issues/133728
+class SubscribedClient {
+  String deviceId;
+  List<String> subscribedCharacteristics;
+  SubscribedClient(this.deviceId, this.subscribedCharacteristics);
+}
+
 class BleCharacteristic {
   String uuid;
-  List<int> properties;
-  List<int> permissions;
+  List<CharacteristicProperties> properties;
+  List<AttributePermissions> permissions;
   List<BleDescriptor>? descriptors;
   Uint8List? value;
-  
+
   BleCharacteristic(
     this.uuid,
     this.value,
@@ -48,7 +73,7 @@ class BleCharacteristic {
 class BleDescriptor {
   String uuid;
   Uint8List? value;
-  List<int>? permissions;
+  List<AttributePermissions>? permissions;
   BleDescriptor(this.uuid, this.value, this.permissions);
 }
 
@@ -92,6 +117,8 @@ abstract class BlePeripheralChannel {
   void clearServices();
 
   List<String> getServices();
+
+  List<SubscribedClient> getSubscribedClients();
 
   void startAdvertising(
     List<String> services,
