@@ -24,7 +24,7 @@ public class BlePeripheralPlugin: NSObject, FlutterPlugin {
 private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralManagerDelegate {
     var bleCallback: BleCallback
     lazy var peripheralManager: CBPeripheralManager = .init(delegate: self, queue: nil, options: nil)
-    var cbCentrals = [CBCentral]()
+    var subscribedCentrals = [CBCentral: [CBCharacteristic]]()
     private var charUpdateQueue: [CharacteristicUpdate] = []
     private var isCharUpdateProcessing = false
 
@@ -80,6 +80,14 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
         }
     }
 
+    func getSubscribedClients() throws -> [SubscribedClient] {
+        var result = [SubscribedClient]()
+        for (central, characteristics) in subscribedCentrals {
+            result.append(SubscribedClient(deviceId: central.identifier.uuidString, subscribedCharacteristics: characteristics.map { $0.uuid.uuidString }))
+        }
+        return result
+    }
+
     func startAdvertising(services: [String], localName: String?, timeout _: Int64?, manufacturerData _: ManufacturerData?, addManufacturerDataInScanResponse _: Bool) throws {
         let cbServices = services.map { uuidString in
             CBUUID(string: uuidString)
@@ -105,18 +113,13 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
         bleCallback.onAdvertisingStatusUpdate(advertising: false, error: nil, completion: { _ in })
     }
 
-    func updateCentralList(central: CBCentral) {
-        let containsDevice = cbCentrals.contains { $0.identifier == central.identifier }
-        if !containsDevice { cbCentrals.append(central) }
-    }
-
     func updateCharacteristic(characteristicId: String, value: FlutterStandardTypedData, deviceId: String?) throws {
         guard let char: CBMutableCharacteristic = characteristicId.findCharacteristic() else {
             throw PigeonError(code: "NotFound", message: "\(characteristicId) characteristic not found", details: nil)
         }
 
         let central: CBCentral? = deviceId.flatMap { id in
-            cbCentrals.first { $0.identifier.uuidString == id }
+            subscribedCentrals.keys.first { $0.identifier.uuidString == id }
         }
 
         if deviceId != nil && central == nil {
@@ -168,10 +171,12 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
     }
 
     internal nonisolated func peripheralManager(_: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
-        // Add central to the list
-        if !cbCentrals.contains(where: { $0.identifier == central.identifier }) {
-            cbCentrals.append(central)
+        if subscribedCentrals[central] == nil {
+            subscribedCentrals[central] = [characteristic]
+        } else if subscribedCentrals[central]?.contains(characteristic) != true {
+            subscribedCentrals[central]?.append(characteristic)
         }
+
         bleCallback.onCharacteristicSubscriptionChange(
             deviceId: central.identifier.uuidString,
             characteristicId: characteristic.uuid.uuidString,
@@ -182,8 +187,14 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
     }
 
     internal nonisolated func peripheralManager(_: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
-        // Remove central from the list
-        cbCentrals.removeAll { $0.identifier == central.identifier }
+        if let index = subscribedCentrals[central]?.firstIndex(of: characteristic) {
+            subscribedCentrals[central]?.remove(at: index)
+        }
+        // If no more characteristics are subscribed by this central, remove it from the list
+        if subscribedCentrals[central]?.isEmpty == true {
+            subscribedCentrals.removeValue(forKey: central)
+        }
+
         bleCallback.onCharacteristicSubscriptionChange(
             deviceId: central.identifier.uuidString,
             characteristicId: characteristic.uuid.uuidString,

@@ -1,3 +1,12 @@
+## 2.5.0
+
+- Breaking Change: now using enums instead of integers for `CharacteristicProperties` and `AttributePermissions`
+- Add new API `getSubscribedClients`
+- Improve Android connection
+- On Android, `isSupported` will return false if not supported instead of throwing error
+- Fix Windows `updateCharacteristic` API when deviceId is not null
+- Bump Pigeon Version
+
 ## 2.4.0
 
 - BreakingChange: `onCharacteristicSubscriptionChange` also send `String? name`

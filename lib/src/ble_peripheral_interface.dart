@@ -25,6 +25,8 @@ abstract class BlePeripheralInterface {
     throw UnimplementedError();
   }
 
+  Future<List<SubscribedClient>> getSubscribedClients();
+
   Future<void> updateCharacteristic({
     required String characteristicId,
     required Uint8List value,

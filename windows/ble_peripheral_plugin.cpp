@@ -125,6 +125,43 @@ namespace ble_peripheral
     return services;
   }
 
+  ErrorOr<flutter::EncodableList> BlePeripheralPlugin::GetSubscribedClients()
+  {
+    // Map of deviceId to list of services and characteristics
+    auto deviceMap = std::map<std::string, flutter::EncodableList>();
+    for (auto const &[key, gattServiceObject] : serviceProviderMap)
+    {
+      for (auto const &[charKey, gattChar] : gattServiceObject->characteristics)
+      {
+        auto clients = gattChar->stored_clients;
+        for (unsigned int i = 0; i < clients.Size(); ++i)
+        {
+          auto client = clients.GetAt(i);
+          std::string deviceId = ParseBluetoothClientId(client.Session().DeviceId().Id());
+
+          if (deviceMap.find(deviceId) != deviceMap.end())
+          {
+            deviceMap[deviceId].push_back(flutter::EncodableValue(charKey));
+          }
+          else
+          {
+            flutter::EncodableList charList = flutter::EncodableList();
+            charList.push_back(flutter::EncodableValue(charKey));
+            deviceMap.insert_or_assign(deviceId, charList);
+          }
+        }
+      }
+    }
+
+    // Get all subscribed clients
+    flutter::EncodableList clients_list = flutter::EncodableList();
+    for (auto const &[deviceId, charList] : deviceMap)
+    {
+      clients_list.push_back(flutter::CustomEncodableValue(SubscribedClient(deviceId, charList)));
+    }
+    return clients_list;
+  }
+
   std::optional<FlutterError> BlePeripheralPlugin::StartAdvertising(
       const flutter::EncodableList &services,
       const std::string *local_name,
@@ -206,6 +243,21 @@ namespace ble_peripheral
     DataWriter writer;
     writer.ByteOrder(ByteOrder::LittleEndian);
     writer.WriteBuffer(bytes);
+
+    if (device_id != nullptr)
+    {
+      std::string deviceId = *device_id;
+      for (auto const &client : gattCharacteristicObject->stored_clients)
+      {
+        if (ParseBluetoothClientId(client.Session().DeviceId().Id()) == deviceId)
+        {
+          gattCharacteristicObject->obj.NotifyValueAsync(writer.DetachBuffer(), client);
+          return std::nullopt;
+        }
+      }
+      return FlutterError("Device not subscribed to this characteristic");
+    }
+
     gattCharacteristicObject->obj.NotifyValueAsync(writer.DetachBuffer());
     return std::nullopt;
   }
@@ -245,7 +297,7 @@ namespace ble_peripheral
         auto charProperties = characteristic.properties();
         for (flutter::EncodableValue propertyEncoded : charProperties)
         {
-          int property = static_cast<int>(std::get<int64_t>(propertyEncoded));
+          CharacteristicProperties property = std::any_cast<CharacteristicProperties>(std::get<flutter::CustomEncodableValue>(propertyEncoded));
           charParameters.CharacteristicProperties(charParameters.CharacteristicProperties() | toGattCharacteristicProperties(property));
         }
 
@@ -253,7 +305,8 @@ namespace ble_peripheral
         auto charPermissions = characteristic.permissions();
         for (flutter::EncodableValue permissionEncoded : charPermissions)
         {
-          auto blePermission = toBlePermission(static_cast<int>(std::get<int64_t>(permissionEncoded)));
+          AttributePermissions bleAttributePermission = std::any_cast<AttributePermissions>(std::get<flutter::CustomEncodableValue>(permissionEncoded));
+          auto blePermission = toBlePermission(bleAttributePermission);
           switch (blePermission)
           {
           case BlePermission::readable:
@@ -305,7 +358,8 @@ namespace ble_peripheral
           flutter::EncodableList descriptorPermissions = descriptor.permissions() == nullptr ? flutter::EncodableList() : *descriptor.permissions();
           for (flutter::EncodableValue permissionsEncoded : descriptorPermissions)
           {
-            auto blePermission = toBlePermission(static_cast<int>(std::get<int64_t>(permissionsEncoded)));
+            AttributePermissions bleAttributePermission = std::any_cast<AttributePermissions>(std::get<flutter::CustomEncodableValue>(permissionsEncoded));
+            auto blePermission = toBlePermission(bleAttributePermission);
             switch (blePermission)
             {
             case BlePermission::readable:
@@ -403,6 +457,18 @@ namespace ble_peripheral
     }
   }
 
+  void BlePeripheralPlugin::onSubscriptionUpdate(std::string deviceName, std::string deviceId, std::string characteristicId, bool subscribed)
+  {
+    /// Notify Flutter
+    uiThreadHandler_.Post([deviceName, deviceId, characteristicId, subscribed]
+                          {
+                            bleCallback->OnCharacteristicSubscriptionChange(
+                                deviceId, characteristicId, subscribed, &deviceName,
+                                SuccessCallback, ErrorCallback);
+                            // Notify subscription change
+                          });
+  }
+
   /// Characteristic Listeners
   winrt::fire_and_forget BlePeripheralPlugin::SubscribedClientsChanged(GattLocalCharacteristic const &localChar, IInspectable const &)
   {
@@ -442,14 +508,7 @@ namespace ble_peripheral
         {
           auto deviceInfo = co_await DeviceInformation::CreateFromIdAsync(oldClient.Session().DeviceId().Id());
           auto deviceName = winrt::to_string(deviceInfo.Name());
-          uiThreadHandler_.Post([deviceName, deviceIdArg, characteristicId]
-                                {
-                                  bleCallback->OnCharacteristicSubscriptionChange(
-                                      deviceIdArg, characteristicId, false, &deviceName,
-                                      SuccessCallback, ErrorCallback);
-                                  // Notify subscription change
-                                });
-          // Point to the local variable
+          onSubscriptionUpdate(deviceName, deviceIdArg, characteristicId, false);
         }
         catch (...)
         {
@@ -480,14 +539,7 @@ namespace ble_peripheral
         {
           auto deviceInfo = co_await DeviceInformation::CreateFromIdAsync(currentClient.Session().DeviceId().Id());
           auto deviceName = winrt::to_string(deviceInfo.Name());
-          uiThreadHandler_.Post([deviceName, deviceIdArg, characteristicId]
-                                {
-                                  bleCallback->OnCharacteristicSubscriptionChange(
-                                      deviceIdArg, characteristicId, true, &deviceName,
-                                      SuccessCallback, ErrorCallback);
-                                  // Notify subscription change
-                                });
-          // Point to the local variable
+          onSubscriptionUpdate(deviceName, deviceIdArg, characteristicId, true);
         }
         catch (...)
         {
@@ -519,7 +571,7 @@ namespace ble_peripheral
       auto bytevc = to_bytevc(charValue);
       value_arg = &bytevc;
     }
-    
+
     auto deferral = args.GetDeferral();
     auto request = co_await args.GetRequestAsync();
     if (request == nullptr)
@@ -532,7 +584,7 @@ namespace ble_peripheral
 
     std::string deviceId = ParseBluetoothClientId(args.Session().DeviceId().Id());
     int64_t offset = request.Offset();
-  
+
     uiThreadHandler_.Post([deviceId, characteristicId, offset, value_arg, deferral, request]
                           {
                             bleCallback->OnReadRequest(
@@ -672,46 +724,46 @@ namespace ble_peripheral
     bleCallback->OnBleStateChange(radioState == RadioState::On, SuccessCallback, ErrorCallback);
   }
 
-  GattCharacteristicProperties BlePeripheralPlugin::toGattCharacteristicProperties(int property)
+  GattCharacteristicProperties BlePeripheralPlugin::toGattCharacteristicProperties(CharacteristicProperties property)
   {
     switch (property)
     {
-    case 0:
+    case CharacteristicProperties::kBroadcast:
       return GattCharacteristicProperties::Broadcast;
-    case 1:
+    case CharacteristicProperties::kRead:
       return GattCharacteristicProperties::Read;
-    case 2:
+    case CharacteristicProperties::kWriteWithoutResponse:
       return GattCharacteristicProperties::WriteWithoutResponse;
-    case 3:
+    case CharacteristicProperties::kWrite:
       return GattCharacteristicProperties::Write;
-    case 4:
+    case CharacteristicProperties::kNotify:
       return GattCharacteristicProperties::Notify;
-    case 5:
+    case CharacteristicProperties::kIndicate:
       return GattCharacteristicProperties::Indicate;
-    case 6:
+    case CharacteristicProperties::kAuthenticatedSignedWrites:
       return GattCharacteristicProperties::AuthenticatedSignedWrites;
-    case 7:
+    case CharacteristicProperties::kExtendedProperties:
       return GattCharacteristicProperties::ExtendedProperties;
-    case 8:
+    case CharacteristicProperties::kNotifyEncryptionRequired:
       return GattCharacteristicProperties::Notify;
-    case 9:
+    case CharacteristicProperties::kIndicateEncryptionRequired:
       return GattCharacteristicProperties::Indicate;
     default:
       return GattCharacteristicProperties::None;
     }
   }
 
-  BlePermission BlePeripheralPlugin::toBlePermission(int permission)
+  BlePermission BlePeripheralPlugin::toBlePermission(AttributePermissions permission)
   {
     switch (permission)
     {
-    case 0:
+    case AttributePermissions::kReadable:
       return BlePermission::readable;
-    case 1:
+    case AttributePermissions::kWriteable:
       return BlePermission::writeable;
-    case 2:
+    case AttributePermissions::kReadEncryptionRequired:
       return BlePermission::readEncryptionRequired;
-    case 3:
+    case AttributePermissions::kWriteEncryptionRequired:
       return BlePermission::writeEncryptionRequired;
     default:
       return BlePermission::none;

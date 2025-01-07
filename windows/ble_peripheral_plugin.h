@@ -86,8 +86,8 @@ namespace ble_peripheral
 
         winrt::fire_and_forget InitializeAdapter();
         winrt::fire_and_forget AddServiceAsync(const BleService &service);
-        GattCharacteristicProperties toGattCharacteristicProperties(int property);
-        BlePermission toBlePermission(int permission);
+        GattCharacteristicProperties toGattCharacteristicProperties(CharacteristicProperties property);
+        BlePermission toBlePermission(AttributePermissions permission);
         std::string AdvertisementStatusToString(GattServiceProviderAdvertisementStatus status);
         void disposeGattServiceObject(GattServiceProviderObject *gattServiceObject);
         void Radio_StateChanged(Radio radio, IInspectable args);
@@ -99,6 +99,7 @@ namespace ble_peripheral
 
         void ServiceProvider_AdvertisementStatusChanged(GattServiceProvider const &sender, GattServiceProviderAdvertisementStatusChangedEventArgs const &);
         winrt::fire_and_forget SubscribedClientsChanged(GattLocalCharacteristic const &sender, IInspectable const &);
+        void onSubscriptionUpdate(std::string deviceName, std::string deviceId, std::string characteristicId, bool subscribed);
         winrt::fire_and_forget ReadRequestedAsync(GattLocalCharacteristic const &, GattReadRequestedEventArgs args);
         winrt::fire_and_forget WriteRequestedAsync(GattLocalCharacteristic const &, GattWriteRequestedEventArgs args);
         std::string ParseBluetoothError(BluetoothError error);
@@ -114,6 +115,7 @@ namespace ble_peripheral
         std::optional<FlutterError> RemoveService(const std::string &service_id);
         std::optional<FlutterError> ClearServices();
         ErrorOr<flutter::EncodableList> GetServices();
+        ErrorOr<flutter::EncodableList> GetSubscribedClients();
         std::optional<FlutterError> StartAdvertising(
             const flutter::EncodableList &services,
             const std::string *local_name,
