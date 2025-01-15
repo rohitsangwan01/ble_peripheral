@@ -19,7 +19,6 @@ namespace ble_peripheral
   using ble_peripheral::ErrorOr;
   std::unique_ptr<BleCallback> bleCallback;
   std::map<std::string, GattServiceProviderObject *> serviceProviderMap;
-  std::mutex cout_mutex;
 
   // static
   void BlePeripheralPlugin::RegisterWithRegistrar(flutter::PluginRegistrarWindows *registrar)
@@ -36,23 +35,38 @@ namespace ble_peripheral
 
   winrt::fire_and_forget BlePeripheralPlugin::InitializeAdapter()
   {
-    auto radios = co_await Radio::GetRadiosAsync();
-    for (auto &&radio : radios)
-    {
-      if (radio.Kind() == RadioKind::Bluetooth)
-      {
-        bluetoothRadio = radio;
-        radioStateChangedRevoker = bluetoothRadio.StateChanged(winrt::auto_revoke, {this, &BlePeripheralPlugin::Radio_StateChanged});
-        bool isOn = bluetoothRadio.State() == RadioState::On;
-        uiThreadHandler_.Post([isOn]
-                              { bleCallback->OnBleStateChange(isOn, SuccessCallback, ErrorCallback); });
 
-        break;
+    const auto &bluetooth_adapter = co_await BluetoothAdapter::GetDefaultAsync();
+    if (bluetooth_adapter != nullptr)
+    {
+      adapter = bluetooth_adapter;
+      bluetoothRadio = co_await bluetooth_adapter.GetRadioAsync();
+    }
+    else
+    {
+      std::cout << "Bluetooth adapter is not available" << std::endl;
+      auto radios = co_await Radio::GetRadiosAsync();
+      for (auto &&radio : radios)
+      {
+        if (radio.Kind() == RadioKind::Bluetooth)
+        {
+          std::cout << "Bluetooth Radio found" << std::endl;
+          bluetoothRadio = radio;
+          break;
+        }
       }
     }
-    if (!bluetoothRadio)
+
+    if (bluetoothRadio != nullptr)
     {
-      std::cout << "Bluetooth is not available" << std::endl;
+      radioStateChangedRevoker = bluetoothRadio.StateChanged(winrt::auto_revoke, {this, &BlePeripheralPlugin::Radio_StateChanged});
+      bool isOn = bluetoothRadio.State() == RadioState::On;
+      uiThreadHandler_.Post([isOn]
+                            { bleCallback->OnBleStateChange(isOn, SuccessCallback, ErrorCallback); });
+    }
+    else
+    {
+      std::cout << "Bluetooth radio is not available" << std::endl;
     }
   }
 
@@ -74,7 +88,11 @@ namespace ble_peripheral
 
   ErrorOr<bool> BlePeripheralPlugin::IsSupported()
   {
-    return bluetoothRadio != nullptr;
+    if (adapter.has_value())
+    {
+      return adapter.value().IsPeripheralRoleSupported();
+    }
+    return false;
   };
 
   ErrorOr<bool> BlePeripheralPlugin::AskBlePermission()
@@ -85,6 +103,11 @@ namespace ble_peripheral
 
   std::optional<FlutterError> BlePeripheralPlugin::AddService(const BleService &service)
   {
+    // check if service already exists
+    if (serviceProviderMap.find(service.uuid()) != serviceProviderMap.end())
+    {
+      return FlutterError("Service already exists");
+    }
     AddServiceAsync(service);
     return std::nullopt;
   };
@@ -171,63 +194,80 @@ namespace ble_peripheral
   {
     try
     {
-      // check if services are empty
-      if (serviceProviderMap.size() == 0)
-        return FlutterError("No services added to advertise");
-
-      if (AreAllServicesStarted())
+      // Lazy initialization of publisher
+      if (!publisher)
       {
-        std::cout << "All services already advertising" << std::endl;
-        uiThreadHandler_.Post([]
-                              { bleCallback->OnAdvertisingStatusUpdate(true, nullptr, SuccessCallback, ErrorCallback); });
-        return std::nullopt;
+        publisher = BluetoothLEAdvertisementPublisher();
+        publisher.StatusChanged({this, &BlePeripheralPlugin::Publisher_StatusChanged});
       }
 
-      auto advertisementParameter = GattServiceProviderAdvertisingParameters();
-      advertisementParameter.IsDiscoverable(true);
-      advertisementParameter.IsConnectable(true);
-
-      for (auto const &[key, gattServiceObject] : serviceProviderMap)
+      if (publisher.Status() == BluetoothLEAdvertisementPublisherStatus::Started)
       {
-        if (gattServiceObject->obj.AdvertisementStatus() == GattServiceProviderAdvertisementStatus::Started)
-        {
-          std::cout << "Service " << key << " is already advertising, skipping" << std::endl;
-          continue;
-        }
-        gattServiceObject->obj.StartAdvertising(advertisementParameter);
+        return FlutterError("Already advertising");
+      }
+      // Advertising with LocalName is not supported
+      // Adding Services throws Invalid Args Error..
+      // for (const auto &service : services)
+      // {
+      //   publisher.Advertisement().ServiceUuids().Append(uuid_to_guid(std::get<std::string>(service)));
+      // }
+
+      if (manufacturer_data != nullptr)
+      {
+        const auto leManufacturerData = BluetoothLEManufacturerData();
+        auto manufacturerId = static_cast<uint16_t>(manufacturer_data->manufacturer_id());
+        auto manufacturerBytes = from_bytevc(manufacturer_data->data());
+        leManufacturerData.CompanyId(manufacturerId);
+        leManufacturerData.Data(manufacturerBytes);
+        publisher.Advertisement().ManufacturerData().Append(leManufacturerData);
       }
 
+      publisher.Start();
       return std::nullopt;
     }
+    catch (const winrt::hresult_error &e)
+    {
+      std::wcerr << "Failed with error: Code: " << e.code() << "Message: " << e.message().c_str() << std::endl;
+      std::string errorMessage = winrt::to_string(e.message());
+      return FlutterError(winrt::to_string(e.message()));
+    }
+    catch (const std::exception &e)
+    {
+      std::cout << "Error: " << e.what() << std::endl;
+      std::wstring errorMessage = winrt::to_hstring(e.what()).c_str();
+      return FlutterError(winrt::to_string(errorMessage));
+    }
+
     catch (...)
     {
-      std::cout << "Error: "
-                << "Unknown error" << std::endl;
-      return std::nullopt;
+      std::cout << "Error: Unknown error" << std::endl;
+      return FlutterError("Something Went Wrong");
     }
   }
 
   std::optional<FlutterError> BlePeripheralPlugin::StopAdvertising()
   {
-    for (auto const &[key, gattServiceObject] : serviceProviderMap)
+    try
     {
-      try
+      if (publisher)
       {
-        gattServiceObject->obj.StopAdvertising();
-        std::cout << "Stopped advertising for service: " << key << std::endl;
+        std::cout << "Stopping advertising" << std::endl;
+        publisher.Advertisement().ServiceUuids().Clear();
+        publisher.Advertisement().ManufacturerData().Clear();
+        publisher.Stop();
       }
-      catch (const winrt::hresult_error &e)
-      {
-        std::wcerr << "Failed to stop service: " << key.c_str() << ", Error: " << e.message().c_str() << std::endl;
-      }
-      catch (...)
-      {
-        std::cout << "Error: Unknown error" << std::endl;
-      }
+      return std::nullopt;
     }
-    uiThreadHandler_.Post([]
-                          { bleCallback->OnAdvertisingStatusUpdate(false, nullptr, SuccessCallback, ErrorCallback); });
-    return std::nullopt;
+    catch (const winrt::hresult_error &e)
+    {
+      std::wcerr << "Failed to stop advertise Error: " << e.message().c_str() << std::endl;
+      return FlutterError("Failed", winrt::to_string(e.message()));
+    }
+    catch (...)
+    {
+      std::cout << "Error: Unknown error" << std::endl;
+      return FlutterError("Failed", "Something Went Wrong");
+    }
   }
 
   std::optional<FlutterError> BlePeripheralPlugin::UpdateCharacteristic(
@@ -263,11 +303,32 @@ namespace ble_peripheral
   }
 
   // Helpers
+  //
+  void BlePeripheralPlugin::Publisher_StatusChanged(BluetoothLEAdvertisementPublisher const &sender, IInspectable const &args)
+  {
+    auto status = sender.Status();
+    
+    if (status == BluetoothLEAdvertisementPublisherStatus::Started)
+    {
+      uiThreadHandler_.Post([]
+                            { bleCallback->OnAdvertisingStatusUpdate(true, nullptr, SuccessCallback, ErrorCallback); });
+    }
+    else if (status == BluetoothLEAdvertisementPublisherStatus::Stopped || status == BluetoothLEAdvertisementPublisherStatus::Aborted)
+    {
+      uiThreadHandler_.Post([]
+                            { bleCallback->OnAdvertisingStatusUpdate(false, nullptr, SuccessCallback, ErrorCallback); });
+    }
+
+    auto status_str = ParseLEAdvertisementStatus(status);
+    std::cout << "BlePublisherStatusChanged: " << status_str << std::endl;
+  }
+
   winrt::fire_and_forget BlePeripheralPlugin::AddServiceAsync(const BleService &service)
   {
     auto serviceUuid = service.uuid();
     try
     {
+
       // Build Service
       auto characteristics = service.characteristics();
       auto gattCharacteristicObjList = std::map<std::string, GattCharacteristicObject *>();
@@ -400,6 +461,20 @@ namespace ble_peripheral
       gattServiceProviderObject->advertisement_status_changed_token = serviceProvider.AdvertisementStatusChanged({this, &BlePeripheralPlugin::ServiceProvider_AdvertisementStatusChanged});
       serviceProviderMap.insert_or_assign(guid_to_uuid(serviceProvider.Service().Uuid()), gattServiceProviderObject);
 
+      // Start Service Advertisements
+      auto advertisementParameter = GattServiceProviderAdvertisingParameters();
+      advertisementParameter.IsDiscoverable(true);
+      advertisementParameter.IsConnectable(true);
+
+      if (serviceProvider.AdvertisementStatus() == GattServiceProviderAdvertisementStatus::Started)
+      {
+        std::cout << "Service is already advertising, skipping" << std::endl;
+      }
+      else
+      {
+        serviceProvider.StartAdvertising(advertisementParameter);
+      }
+
       uiThreadHandler_.Post([serviceUuid]
                             { bleCallback->OnServiceAdded(serviceUuid, nullptr, SuccessCallback, ErrorCallback); });
     }
@@ -433,27 +508,15 @@ namespace ble_peripheral
   /// Advertisements Listener
   void BlePeripheralPlugin::ServiceProvider_AdvertisementStatusChanged(GattServiceProvider const &sender, GattServiceProviderAdvertisementStatusChangedEventArgs const &args)
   {
-    std::lock_guard<std::mutex> lock(cout_mutex);
     auto serviceUuid = guid_to_uuid(sender.Service().Uuid());
     if (args.Error() != BluetoothError::Success)
     {
       std::string errorStr = ParseBluetoothError(args.Error());
-      std::cout << "AdvertisementStatusChanged " << serviceUuid << ", Error " << errorStr << std::endl;
-
-      uiThreadHandler_.Post([errorStr]
-                            { bleCallback->OnAdvertisingStatusUpdate(false, &errorStr, SuccessCallback, ErrorCallback); });
-      return;
+      std::cout << "ServiceAdvertisementStatusChanged " << serviceUuid << ", Error " << errorStr << std::endl;
     }
-
-    auto argStatus = args.Status();
-    auto statusStr = AdvertisementStatusToString(argStatus);
-    std::cout << "AdvertisingStatus of service " << serviceUuid << ", changed to " << statusStr << " " << std::endl;
-
-    // Check if all services started
-    if (AreAllServicesStarted())
+    else
     {
-      uiThreadHandler_.Post([]
-                            { bleCallback->OnAdvertisingStatusUpdate(true, nullptr, SuccessCallback, ErrorCallback); });
+      std::cout << "AdvertisingStatus of service " << serviceUuid << ", changed to " << AdvertisementStatusToString(args.Status()) << " " << std::endl;
     }
   }
 
@@ -682,10 +745,11 @@ namespace ble_peripheral
       gattServiceObject->obj.AdvertisementStatusChanged(gattServiceObject->advertisement_status_changed_token);
 
       // Stop advertising if started
-
       try
       {
-        if (gattServiceObject->obj.AdvertisementStatus() == GattServiceProviderAdvertisementStatus::Started)
+        auto status = gattServiceObject->obj.AdvertisementStatus();
+        // Created, Stopped, Started, Aborted, StartedWithoutAllAdvertisementData
+        if (status == GattServiceProviderAdvertisementStatus::Started)
         {
           gattServiceObject->obj.StopAdvertising();
         }
@@ -721,7 +785,9 @@ namespace ble_peripheral
       return;
     }
     oldRadioState = radioState;
-    bleCallback->OnBleStateChange(radioState == RadioState::On, SuccessCallback, ErrorCallback);
+    bool isOn = radioState == RadioState::On;
+    uiThreadHandler_.Post([isOn]
+                          { bleCallback->OnBleStateChange(isOn, SuccessCallback, ErrorCallback); });
   }
 
   GattCharacteristicProperties BlePeripheralPlugin::toGattCharacteristicProperties(CharacteristicProperties property)
@@ -798,6 +864,27 @@ namespace ble_peripheral
       return deviceIdString.substr(pos + 1);
     }
     return deviceIdString;
+  }
+
+  std::string BlePeripheralPlugin::ParseLEAdvertisementStatus(BluetoothLEAdvertisementPublisherStatus status)
+  {
+    switch (status)
+    {
+    case BluetoothLEAdvertisementPublisherStatus::Created:
+      return "Created";
+    case BluetoothLEAdvertisementPublisherStatus::Waiting:
+      return "Waiting";
+    case BluetoothLEAdvertisementPublisherStatus::Started:
+      return "Started";
+    case BluetoothLEAdvertisementPublisherStatus::Stopped:
+      return "Stopped";
+    case BluetoothLEAdvertisementPublisherStatus::Stopping:
+      return "Stopping";
+    case BluetoothLEAdvertisementPublisherStatus::Aborted:
+      return "Aborted";
+    default:
+      return "Unknown";
+    }
   }
 
   std::string BlePeripheralPlugin::ParseBluetoothError(BluetoothError error)

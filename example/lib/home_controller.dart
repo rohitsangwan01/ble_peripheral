@@ -32,29 +32,6 @@ class HomeController extends GetxController {
         _ => "TestDevice"
       };
 
-  var manufacturerData = ManufacturerData(
-    manufacturerId: 0x012D,
-    data: Uint8List.fromList([
-      0x03,
-      0x00,
-      0x64,
-      0x00,
-      0x45,
-      0x31,
-      0x22,
-      0xAB,
-      0x00,
-      0x21,
-      0x60,
-      0x00,
-      0x00,
-      0x00,
-      0x00,
-      0x00,
-      0x00
-    ]),
-  );
-
   // Battery Service
   String serviceBattery = "0000180F-0000-1000-8000-00805F9B34FB";
   String characteristicBatteryLevel = "00002A19-0000-1000-8000-00805F9B34FB";
@@ -140,7 +117,10 @@ class HomeController extends GetxController {
     await BlePeripheral.startAdvertising(
       services: [serviceBattery, serviceTest],
       localName: deviceName,
-      manufacturerData: manufacturerData,
+      manufacturerData: ManufacturerData(
+        manufacturerId: 0x012D,
+        data: Uint8List.fromList([0x01, 0x02, 0x03]),
+      ),
       addManufacturerDataInScanResponse: true,
     );
   }
