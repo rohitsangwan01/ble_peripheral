@@ -35,7 +35,6 @@ namespace ble_peripheral
 
   winrt::fire_and_forget BlePeripheralPlugin::InitializeAdapter()
   {
-
     const auto &bluetooth_adapter = co_await BluetoothAdapter::GetDefaultAsync();
     if (bluetooth_adapter != nullptr)
     {
@@ -78,21 +77,21 @@ namespace ble_peripheral
 
   ErrorOr<std::optional<bool>> BlePeripheralPlugin::IsAdvertising()
   {
-    // Check is any service is advertising, or if services list is empty
-    // Get serviceProviderMap length
-    if (serviceProviderMap.size() == 0)
+    if (!publisher)
+    {
       return ErrorOr<std::optional<bool>>(std::optional<bool>(false));
-    bool advertising = AreAllServicesStarted();
+    }
+    bool advertising = publisher.Status() == BluetoothLEAdvertisementPublisherStatus::Started;
     return ErrorOr<std::optional<bool>>(std::optional<bool>(advertising));
   };
 
   ErrorOr<bool> BlePeripheralPlugin::IsSupported()
   {
-    if (adapter.has_value())
+    if (!adapter)
     {
-      return adapter.value().IsPeripheralRoleSupported();
+      return FlutterError("Bluetooth adapter is not available");
     }
-    return false;
+    return adapter.IsPeripheralRoleSupported();
   };
 
   ErrorOr<bool> BlePeripheralPlugin::AskBlePermission()
@@ -103,11 +102,14 @@ namespace ble_peripheral
 
   std::optional<FlutterError> BlePeripheralPlugin::AddService(const BleService &service)
   {
-    // check if service already exists
-    if (serviceProviderMap.find(service.uuid()) != serviceProviderMap.end())
+    // Check if service already exists
+    std::string serviceId = to_lower_case(service.uuid());
+    if (serviceProviderMap.find(serviceId) != serviceProviderMap.end())
     {
-      return FlutterError("Service already exists");
+      return FlutterError("Service already added");
     }
+
+    // Add service
     AddServiceAsync(service);
     return std::nullopt;
   };
@@ -205,7 +207,13 @@ namespace ble_peripheral
       {
         return FlutterError("Already advertising");
       }
+
       // Advertising with LocalName is not supported
+      // if (local_name != nullptr)
+      // {
+      //   publisher.Advertisement().LocalName(winrt::to_hstring(*local_name));
+      // }
+
       // Adding Services throws Invalid Args Error..
       // for (const auto &service : services)
       // {
@@ -307,7 +315,7 @@ namespace ble_peripheral
   void BlePeripheralPlugin::Publisher_StatusChanged(BluetoothLEAdvertisementPublisher const &sender, IInspectable const &args)
   {
     auto status = sender.Status();
-    
+
     if (status == BluetoothLEAdvertisementPublisherStatus::Started)
     {
       uiThreadHandler_.Post([]
@@ -461,17 +469,15 @@ namespace ble_peripheral
       gattServiceProviderObject->advertisement_status_changed_token = serviceProvider.AdvertisementStatusChanged({this, &BlePeripheralPlugin::ServiceProvider_AdvertisementStatusChanged});
       serviceProviderMap.insert_or_assign(guid_to_uuid(serviceProvider.Service().Uuid()), gattServiceProviderObject);
 
-      // Start Service Advertisements
-      auto advertisementParameter = GattServiceProviderAdvertisingParameters();
-      advertisementParameter.IsDiscoverable(true);
-      advertisementParameter.IsConnectable(true);
-
       if (serviceProvider.AdvertisementStatus() == GattServiceProviderAdvertisementStatus::Started)
       {
-        std::cout << "Service is already advertising, skipping" << std::endl;
+        std::cout << "Service is already advertising" << std::endl;
       }
       else
       {
+        auto advertisementParameter = GattServiceProviderAdvertisingParameters();
+        advertisementParameter.IsDiscoverable(true);
+        advertisementParameter.IsConnectable(true);
         serviceProvider.StartAdvertising(advertisementParameter);
       }
 
@@ -929,18 +935,6 @@ namespace ble_peripheral
       }
     }
     return nullptr;
-  }
-
-  bool BlePeripheralPlugin::AreAllServicesStarted()
-  {
-    for (auto const &[key, gattServiceObject] : serviceProviderMap)
-    {
-      if (gattServiceObject->obj.AdvertisementStatus() != GattServiceProviderAdvertisementStatus::Started)
-      {
-        return false;
-      }
-    }
-    return true;
   }
 
 } // namespace ble_peripheral

@@ -83,7 +83,7 @@ namespace ble_peripheral
 
         // BluetoothLe
         Radio bluetoothRadio{nullptr};
-        std::optional<BluetoothAdapter> adapter;
+        BluetoothAdapter adapter{nullptr};
         BluetoothLEAdvertisementPublisher publisher{nullptr};
 
         void Publisher_StatusChanged(BluetoothLEAdvertisementPublisher const &sender, IInspectable const &args);
@@ -108,7 +108,6 @@ namespace ble_peripheral
         winrt::fire_and_forget ReadRequestedAsync(GattLocalCharacteristic const &, GattReadRequestedEventArgs args);
         winrt::fire_and_forget WriteRequestedAsync(GattLocalCharacteristic const &, GattWriteRequestedEventArgs args);
         std::string ParseBluetoothError(BluetoothError error);
-        bool AreAllServicesStarted();
 
         // BlePeripheralChannel
         std::optional<FlutterError> Initialize();
