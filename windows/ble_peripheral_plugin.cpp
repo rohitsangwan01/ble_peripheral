@@ -9,7 +9,6 @@
 #include <thread>
 #include <regex>
 #include "Utils.h"
-
 #include "BlePeripheral.g.h"
 
 namespace ble_peripheral
@@ -571,6 +570,7 @@ namespace ble_peripheral
 
   winrt::fire_and_forget BlePeripheralPlugin::WriteRequestedAsync(GattLocalCharacteristic const &localChar, GattWriteRequestedEventArgs args)
   {
+    std::string characteristicId = to_uuidstr(localChar.Uuid());
     auto deferral = args.GetDeferral();
     GattWriteRequest request = co_await args.GetRequestAsync();
     if (request == nullptr)
@@ -581,10 +581,8 @@ namespace ble_peripheral
     }
 
     std::string deviceId = ParseBluetoothClientId(args.Session().DeviceId().Id());
-
-    uiThreadHandler_.Post([localChar, request, deferral, deviceId]
+    uiThreadHandler_.Post([localChar, request, deferral, deviceId, characteristicId]
                           {
-                            auto characteristicId = guid_to_uuid(localChar.Uuid());
                             int64_t offset = request.Offset();
                             auto bytevc = to_bytevc(request.Value());
                             std::vector<uint8_t> *value_arg = &bytevc;
