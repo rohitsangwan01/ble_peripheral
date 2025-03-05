@@ -1,15 +1,28 @@
 // ignore_for_file: non_constant_identifier_names
 
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:ble_peripheral/ble_peripheral.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 
+class BleClient {
+  String? name;
+  String deviceId;
+  Set<String> subscribedChars;
+
+  BleClient({
+    required this.name,
+    required this.deviceId,
+    required this.subscribedChars,
+  });
+}
+
 class HomeController extends GetxController {
   RxBool isAdvertising = false.obs;
   RxBool isBleOn = false.obs;
-  RxList<String> devices = <String>[].obs;
+  RxList<BleClient> devices = <BleClient>[].obs;
 
   String get deviceName => switch (defaultTargetPlatform) {
         TargetPlatform.android => "BleDroid",
@@ -18,29 +31,6 @@ class HomeController extends GetxController {
         TargetPlatform.windows => "BleWin",
         _ => "TestDevice"
       };
-
-  var manufacturerData = ManufacturerData(
-    manufacturerId: 0x012D,
-    data: Uint8List.fromList([
-      0x03,
-      0x00,
-      0x64,
-      0x00,
-      0x45,
-      0x31,
-      0x22,
-      0xAB,
-      0x00,
-      0x21,
-      0x60,
-      0x00,
-      0x00,
-      0x00,
-      0x00,
-      0x00,
-      0x00
-    ]),
-  );
 
   // Battery Service
   String serviceBattery = "0000180F-0000-1000-8000-00805F9B34FB";
@@ -70,17 +60,27 @@ class HomeController extends GetxController {
       Get.log(
         "onCharacteristicSubscriptionChange: $deviceId : $characteristicId $isSubscribed Name: $name",
       );
-      String deviceName = "${name ?? deviceId} subscribed to $characteristicId";
+
+      int? index = devices.indexWhere((e) => e.deviceId == deviceId);
       if (isSubscribed) {
-        if (!devices.any((element) => element == deviceName)) {
-          devices.add(deviceName);
-          Get.log("$deviceName adding");
+        if (index != -1) {
+          devices[index].subscribedChars.add(characteristicId);
         } else {
-          Get.log("$deviceName already exists");
+          devices.add(BleClient(
+            name: name,
+            deviceId: deviceId,
+            subscribedChars: {characteristicId},
+          ));
         }
       } else {
-        devices.removeWhere((element) => element == deviceName);
+        if (index != -1) {
+          devices[index].subscribedChars.remove(characteristicId);
+          if (devices[index].subscribedChars.isEmpty) {
+            devices.removeWhere((e) => e.deviceId == deviceId);
+          }
+        }
       }
+      devices.refresh();
     });
 
     BlePeripheral.setReadRequestCallback(
@@ -117,7 +117,10 @@ class HomeController extends GetxController {
     await BlePeripheral.startAdvertising(
       services: [serviceBattery, serviceTest],
       localName: deviceName,
-      manufacturerData: manufacturerData,
+      manufacturerData: ManufacturerData(
+        manufacturerId: 0x012D,
+        data: Uint8List.fromList([0x01, 0x02, 0x03]),
+      ),
       addManufacturerDataInScanResponse: true,
     );
   }
@@ -128,8 +131,8 @@ class HomeController extends GetxController {
         uuid: "00002908-0000-1000-8000-00805F9B34FB",
         value: Uint8List.fromList([0, 1]),
         permissions: [
-          AttributePermissions.readable.index,
-          AttributePermissions.writeable.index
+          AttributePermissions.readable,
+          AttributePermissions.writeable
         ],
       );
 
@@ -141,11 +144,11 @@ class HomeController extends GetxController {
             BleCharacteristic(
               uuid: characteristicBatteryLevel,
               properties: [
-                CharacteristicProperties.read.index,
-                CharacteristicProperties.notify.index
+                CharacteristicProperties.read,
+                CharacteristicProperties.notify
               ],
               value: null,
-              permissions: [AttributePermissions.readable.index],
+              permissions: [AttributePermissions.readable],
             ),
           ],
         ),
@@ -159,15 +162,15 @@ class HomeController extends GetxController {
             BleCharacteristic(
               uuid: characteristicTest,
               properties: [
-                CharacteristicProperties.read.index,
-                CharacteristicProperties.notify.index,
-                CharacteristicProperties.write.index,
+                CharacteristicProperties.read,
+                CharacteristicProperties.notify,
+                CharacteristicProperties.write,
               ],
               descriptors: [notificationControlDescriptor],
               value: null,
               permissions: [
-                AttributePermissions.readable.index,
-                AttributePermissions.writeable.index
+                AttributePermissions.readable,
+                AttributePermissions.writeable
               ],
             ),
           ],
@@ -192,12 +195,31 @@ class HomeController extends GetxController {
   /// Update characteristic value, to all the devices which are subscribed to it
   void updateCharacteristic() async {
     try {
-      await BlePeripheral.updateCharacteristic(
-        characteristicId: characteristicTest,
-        value: utf8.encode("Test Data"),
-      );
+      for (BleClient client in devices) {
+        var value = "Hii ${Random().nextInt(100)}";
+        BlePeripheral.updateCharacteristic(
+          characteristicId: characteristicTest,
+          value: utf8.encode(value),
+          deviceId: client.deviceId,
+        );
+      }
     } catch (e) {
       Get.log("UpdateCharacteristicError: $e");
     }
+  }
+
+  void getSubscribedClients() async {
+    List<SubscribedClient> clients = await BlePeripheral.getSubscribedClients();
+    if (clients.isEmpty) {
+      Get.log("No clients subscribed");
+      return;
+    }
+
+    Get.log(clients
+        .map((e) => {
+              "DeviceId": e.deviceId,
+              "SubscribedChars": e.subscribedCharacteristics
+            })
+        .join(", "));
   }
 }

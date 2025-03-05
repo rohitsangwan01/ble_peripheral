@@ -89,7 +89,13 @@ class HomeView extends GetView<HomeController> {
                       onPressed: () async {
                         controller.updateCharacteristic();
                       },
-                      child: const Text('Update Characteristic value'),
+                      child: const Text('Update Char'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () async {
+                        controller.getSubscribedClients();
+                      },
+                      child: const Text('Subscribed Clients'),
                     ),
                   ],
                 ),
@@ -100,9 +106,13 @@ class HomeView extends GetView<HomeController> {
                 child: Obx(() => ListView.builder(
                       itemCount: controller.devices.length,
                       itemBuilder: (BuildContext context, int index) {
+                        BleClient device = controller.devices[index];
                         return Card(
                           child: ListTile(
-                            title: Text(controller.devices[index]),
+                            title: Text(device.name ?? device.deviceId),
+                            subtitle: Text(
+                              "Subscribed: ${device.subscribedChars}",
+                            ),
                           ),
                         );
                       },

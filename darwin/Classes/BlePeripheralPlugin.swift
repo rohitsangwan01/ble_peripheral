@@ -24,7 +24,9 @@ public class BlePeripheralPlugin: NSObject, FlutterPlugin {
 private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralManagerDelegate {
     var bleCallback: BleCallback
     lazy var peripheralManager: CBPeripheralManager = .init(delegate: self, queue: nil, options: nil)
-    var cbCentrals = [CBCentral]()
+    var subscribedCentrals = [CBCentral: [CBCharacteristic]]()
+    private var charUpdateQueue: [CharacteristicUpdate] = []
+    private var isCharUpdateProcessing = false
 
     init(bleCallback: BleCallback) {
         self.bleCallback = bleCallback
@@ -78,6 +80,14 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
         }
     }
 
+    func getSubscribedClients() throws -> [SubscribedClient] {
+        var result = [SubscribedClient]()
+        for (central, characteristics) in subscribedCentrals {
+            result.append(SubscribedClient(deviceId: central.identifier.uuidString, subscribedCharacteristics: characteristics.map { $0.uuid.uuidString }))
+        }
+        return result
+    }
+
     func startAdvertising(services: [String], localName: String?, timeout _: Int64?, manufacturerData _: ManufacturerData?, addManufacturerDataInScanResponse _: Bool) throws {
         let cbServices = services.map { uuidString in
             CBUUID(string: uuidString)
@@ -88,13 +98,13 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
         if localName != nil {
             advertisementData[CBAdvertisementDataLocalNameKey] = localName
         }
-//        if let manufacturerData = manufacturerData {
-//            var manufData = Data()
-//            manufData.append(contentsOf: withUnsafeBytes(of: manufacturerData.manufacturerId) { Data($0) })
-//            manufData.append(manufacturerData.data.data)
-//            advertisementData[CBAdvertisementDataManufacturerDataKey] = manufData
-//        }
-//        print("AdvertisementData: \(advertisementData)")
+        // if let manufacturerData = manufacturerData {
+        //     var manufData = Data()
+        //     manufData.append(contentsOf: withUnsafeBytes(of: manufacturerData.manufacturerId) { Data($0) })
+        //     manufData.append(manufacturerData.data.data)
+        //     advertisementData[CBAdvertisementDataManufacturerDataKey] = manufData
+        // }
+        // print("AdvertisementData: \(advertisementData)")
         peripheralManager.startAdvertising(advertisementData)
     }
 
@@ -103,27 +113,47 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
         bleCallback.onAdvertisingStatusUpdate(advertising: false, error: nil, completion: { _ in })
     }
 
-    func updateCentralList(central: CBCentral) {
-        let containsDevice = cbCentrals.contains { $0.identifier == central.identifier }
-        if !containsDevice { cbCentrals.append(central) }
+    func updateCharacteristic(characteristicId: String, value: FlutterStandardTypedData, deviceId: String?) throws {
+        guard let char: CBMutableCharacteristic = characteristicId.findCharacteristic() else {
+            throw PigeonError(code: "NotFound", message: "\(characteristicId) characteristic not found", details: nil)
+        }
+
+        let central: CBCentral? = deviceId.flatMap { id in
+            subscribedCentrals.keys.first { $0.identifier.uuidString == id }
+        }
+
+        if deviceId != nil && central == nil {
+            throw PigeonError(code: "NotFound", message: "\(deviceId!) device not found", details: nil)
+        }
+
+        charUpdateQueue.append(CharacteristicUpdate(characteristic: char, data: value.toData(), central: central))
+        processCharUpdateQueue()
     }
 
-    func updateCharacteristic(characteristicId: String, value: FlutterStandardTypedData, deviceId: String?) throws {
-        let char: CBMutableCharacteristic? = characteristicId.findCharacteristic()
-        if char == nil {
-            throw CustomError.notFound("\(characteristicId) characteristic not found")
-        }
-        if let deviceId = deviceId {
-            let centralDevice: CBCentral? = cbCentrals.first(where: { device in
-                deviceId == device.identifier.uuidString
-            })
-            if centralDevice == nil {
-                throw CustomError.notFound("\(deviceId) device not found")
+    private func processCharUpdateQueue() {
+        guard !isCharUpdateProcessing, !charUpdateQueue.isEmpty else { return }
+        isCharUpdateProcessing = true
+        while !charUpdateQueue.isEmpty {
+            let charUpdate = charUpdateQueue[0]
+            let success = peripheralManager.updateValue(
+                charUpdate.data,
+                for: charUpdate.characteristic,
+                onSubscribedCentrals: charUpdate.central.map { [$0] }
+            )
+            if success {
+                charUpdateQueue.removeFirst()
+            } else {
+                // print("Failed to update characteristic value for \(charUpdate.characteristic.uuid).")
+                // If `updateValue` fails, stop processing and wait for `peripheralManagerIsReady`
+                break
             }
-            peripheralManager.updateValue(value.toData(), for: char!, onSubscribedCentrals: [centralDevice!])
-        } else {
-            peripheralManager.updateValue(value.toData(), for: char!, onSubscribedCentrals: nil)
         }
+        isCharUpdateProcessing = false
+    }
+
+    func peripheralManagerIsReady(toUpdateSubscribers _: CBPeripheralManager) {
+        // print("Ready to update char")
+        processCharUpdateQueue()
     }
 
     /// Swift callbacks
@@ -132,7 +162,7 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
     }
 
     nonisolated func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
-        print("BluetoothState: \(peripheral.state)")
+        // print("BluetoothState: \(peripheral.state)")
         bleCallback.onBleStateChange(state: peripheral.state == .poweredOn, completion: { _ in })
     }
 
@@ -141,25 +171,35 @@ private class BlePeripheralDarwin: NSObject, BlePeripheralChannel, CBPeripheralM
     }
 
     internal nonisolated func peripheralManager(_: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
-        // Add central to the list
-        if !cbCentrals.contains(where: { $0.identifier == central.identifier }) {
-            cbCentrals.append(central)
+        if subscribedCentrals[central] == nil {
+            subscribedCentrals[central] = [characteristic]
+        } else if subscribedCentrals[central]?.contains(characteristic) != true {
+            subscribedCentrals[central]?.append(characteristic)
         }
+
         bleCallback.onCharacteristicSubscriptionChange(
             deviceId: central.identifier.uuidString,
             characteristicId: characteristic.uuid.uuidString,
-            isSubscribed: true, name: nil) { _ in }
+            isSubscribed: true, name: nil
+        ) { _ in }
         // Update MTU for this device
         bleCallback.onMtuChange(deviceId: central.identifier.uuidString, mtu: Int64(central.maximumUpdateValueLength)) { _ in }
     }
 
     internal nonisolated func peripheralManager(_: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
-        // Remove central from the list
-        cbCentrals.removeAll { $0.identifier == central.identifier }
+        if let index = subscribedCentrals[central]?.firstIndex(of: characteristic) {
+            subscribedCentrals[central]?.remove(at: index)
+        }
+        // If no more characteristics are subscribed by this central, remove it from the list
+        if subscribedCentrals[central]?.isEmpty == true {
+            subscribedCentrals.removeValue(forKey: central)
+        }
+
         bleCallback.onCharacteristicSubscriptionChange(
             deviceId: central.identifier.uuidString,
             characteristicId: characteristic.uuid.uuidString,
-            isSubscribed: false, name: nil) { _ in }
+            isSubscribed: false, name: nil
+        ) { _ in }
     }
 
     internal nonisolated func peripheralManager(_: CBPeripheralManager, didReceiveRead request: CBATTRequest) {

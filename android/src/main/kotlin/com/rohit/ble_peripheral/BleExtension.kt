@@ -15,7 +15,6 @@ private val bluetoothGattCharacteristics: MutableMap<String, BluetoothGattCharac
     HashMap()
 private val descriptorValueReadMap: MutableMap<String, ByteArray> =
     HashMap()
-val subscribedCharDevicesMap: MutableMap<String, MutableList<String>> = HashMap()
 const val descriptorCCUUID = "00002902-0000-1000-8000-00805f9b34fb"
 
 
@@ -137,37 +136,35 @@ fun String.findService(): BluetoothGattService? {
     return null
 }
 
-fun List<Long>.toPropertiesList(): Int {
-    return this.map { it.toInt() }.fold(0) { acc, i -> acc or i.toProperties() }.toInt()
+fun List<CharacteristicProperties>.toPropertiesList(): Int {
+    return this.map { it }.fold(0) { acc, i -> acc or i.toProperties() }.toInt()
 }
 
-fun List<Long>.toPermissionsList(): Int {
-    return this.map { it.toInt() }.fold(0) { acc, i -> acc or i.toPermission() }.toInt()
+fun List<AttributePermissions>.toPermissionsList(): Int {
+    return this.map { it }.fold(0) { acc, i -> acc or i.toPermission() }.toInt()
 }
 
-fun Int.toProperties(): Int {
+fun CharacteristicProperties.toProperties(): Int {
     return when (this) {
-        0 -> BluetoothGattCharacteristic.PROPERTY_BROADCAST
-        1 -> BluetoothGattCharacteristic.PROPERTY_READ
-        2 -> BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE
-        3 -> BluetoothGattCharacteristic.PROPERTY_WRITE
-        4 -> BluetoothGattCharacteristic.PROPERTY_NOTIFY
-        5 -> BluetoothGattCharacteristic.PROPERTY_INDICATE
-        6 -> BluetoothGattCharacteristic.PROPERTY_SIGNED_WRITE
-        7 -> BluetoothGattCharacteristic.PROPERTY_EXTENDED_PROPS
-        8 -> BluetoothGattCharacteristic.PROPERTY_NOTIFY //  NotifyEncryptionRequired
-        9 -> BluetoothGattCharacteristic.PROPERTY_INDICATE //   IndicateEncryptionRequired
-        else -> 0
+        CharacteristicProperties.BROADCAST -> BluetoothGattCharacteristic.PROPERTY_BROADCAST
+        CharacteristicProperties.READ -> BluetoothGattCharacteristic.PROPERTY_READ
+        CharacteristicProperties.WRITE_WITHOUT_RESPONSE -> BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE
+        CharacteristicProperties.WRITE -> BluetoothGattCharacteristic.PROPERTY_WRITE
+        CharacteristicProperties.NOTIFY -> BluetoothGattCharacteristic.PROPERTY_NOTIFY
+        CharacteristicProperties.INDICATE -> BluetoothGattCharacteristic.PROPERTY_INDICATE
+        CharacteristicProperties.AUTHENTICATED_SIGNED_WRITES -> BluetoothGattCharacteristic.PROPERTY_SIGNED_WRITE
+        CharacteristicProperties.EXTENDED_PROPERTIES -> BluetoothGattCharacteristic.PROPERTY_EXTENDED_PROPS
+        CharacteristicProperties.NOTIFY_ENCRYPTION_REQUIRED -> BluetoothGattCharacteristic.PROPERTY_NOTIFY //  NotifyEncryptionRequired
+        CharacteristicProperties.INDICATE_ENCRYPTION_REQUIRED -> BluetoothGattCharacteristic.PROPERTY_INDICATE //   IndicateEncryptionRequired
     }
 }
 
-fun Int.toPermission(): Int {
+fun AttributePermissions.toPermission(): Int {
     return when (this) {
-        0 -> BluetoothGattCharacteristic.PERMISSION_READ
-        1 -> BluetoothGattCharacteristic.PERMISSION_WRITE
-        2 -> BluetoothGattCharacteristic.PERMISSION_READ_ENCRYPTED
-        3 -> BluetoothGattCharacteristic.PERMISSION_WRITE_ENCRYPTED
-        else -> 0
+        AttributePermissions.READABLE -> BluetoothGattCharacteristic.PERMISSION_READ
+        AttributePermissions.WRITEABLE -> BluetoothGattCharacteristic.PERMISSION_WRITE
+        AttributePermissions.READ_ENCRYPTION_REQUIRED -> BluetoothGattCharacteristic.PERMISSION_READ_ENCRYPTED
+        AttributePermissions.WRITE_ENCRYPTION_REQUIRED -> BluetoothGattCharacteristic.PERMISSION_WRITE_ENCRYPTED
     }
 }
 

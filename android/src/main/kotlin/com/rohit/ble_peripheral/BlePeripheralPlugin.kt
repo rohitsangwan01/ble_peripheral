@@ -47,6 +47,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
     private var bluetoothLeAdvertiser: BluetoothLeAdvertiser? = null
     private var gattServer: BluetoothGattServer? = null
     private val bluetoothDevicesMap: MutableMap<String, BluetoothDevice> = HashMap()
+    private val subscribedCharDevicesMap: MutableMap<String, MutableList<String>> = HashMap()
     private val emptyBytes = byteArrayOf()
     private val listOfDevicesWaitingForBond = mutableListOf<String>()
     private var isAdvertising: Boolean? = null
@@ -83,11 +84,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
 
     override fun isSupported(): Boolean {
         val bluetoothAdapter = bluetoothManager?.adapter ?: return false
-        // if (!bluetoothAdapter.isEnabled) throw UnsupportedOperationException("Bluetooth is disabled.")
-        if (!bluetoothAdapter.isMultipleAdvertisementSupported) throw UnsupportedOperationException(
-            "Bluetooth LE Advertising not supported on this device."
-        )
-        return true
+        return bluetoothAdapter.isMultipleAdvertisementSupported
     }
 
     override fun addService(service: BleService) {
@@ -108,6 +105,10 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
         return gattServer?.services?.map {
             it.uuid.toString()
         } ?: emptyList()
+    }
+
+    override fun getSubscribedClients(): List<SubscribedClient> {
+        return subscribedCharDevicesMap.map { data -> SubscribedClient(data.key, data.value) }
     }
 
     override fun startAdvertising(
@@ -279,6 +280,11 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
         }
     }
 
+    private fun onBonded(device: BluetoothDevice) {
+        synchronized(bluetoothDevicesMap) {
+            bluetoothDevicesMap.put(device.address, device)
+        }
+    }
 
     private val gattServerCallback: BluetoothGattServerCallback =
         object : BluetoothGattServerCallback() {
@@ -291,26 +297,21 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                 when (newState) {
                     BluetoothProfile.STATE_CONNECTED -> {
                         if (device.bondState == BluetoothDevice.BOND_NONE) {
+                            Log.d(TAG, "Device Not bonded. Trying to bond")
                             // Wait for bonding
                             listOfDevicesWaitingForBond.add(device.address)
                             device.createBond()
                         } else if (device.bondState == BluetoothDevice.BOND_BONDED) {
-                            handler?.post {
-                                gattServer?.connect(device, true)
-                            }
-                            synchronized(bluetoothDevicesMap) {
-                                bluetoothDevicesMap.put(
-                                    device.address,
-                                    device
-                                )
-                            }
+                            onBonded(device)
                         }
                         onConnectionUpdate(device, status, newState)
                     }
 
                     BluetoothProfile.STATE_DISCONNECTED -> {
                         val deviceAddress = device.address
-                        synchronized(bluetoothDevicesMap) { bluetoothDevicesMap.remove(deviceAddress) }
+                        synchronized(bluetoothDevicesMap) {
+                            bluetoothDevicesMap.remove(deviceAddress)
+                        }
                         onConnectionUpdate(device, status, newState)
                     }
 
@@ -483,14 +484,24 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                         }
 
                         // Update subscribed char list
-                        val charList: MutableList<String> =
-                            subscribedCharDevicesMap[it] ?: mutableListOf()
+                        val charList = subscribedCharDevicesMap[it] ?: mutableListOf()
+
                         if (isSubscribed) {
-                            charList.add(characteristicId)
+                            if (!charList.contains(characteristicId)) {
+                                charList.add(characteristicId)
+                            }
                         } else if (charList.contains(characteristicId)) {
-                            charList.remove(characteristicId)
+                            if (charList.contains(characteristicId)) {
+                                charList.remove(characteristicId)
+                            }
                         }
-                        subscribedCharDevicesMap[it] = charList
+
+                        if (charList.isEmpty()) {
+                            // No more subscribed characteristics
+                            subscribedCharDevicesMap.remove(it)
+                        } else {
+                            subscribedCharDevicesMap[it] = charList
+                        }
                     }
 
                 }
@@ -569,7 +580,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
 
                 val state =
                     intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.ERROR)
-                val device: BluetoothDevice? =
+                val device: BluetoothDevice =
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         intent.getParcelableExtra(
                             BluetoothDevice.EXTRA_DEVICE,
@@ -578,23 +589,31 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                     } else {
                         @Suppress("DEPRECATION")
                         intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
-                    }
+                    } ?: return
 
                 handler?.post {
                     bleCallback?.onBondStateChange(
-                        device?.address ?: "",
+                        device.address,
                         state.toBondState(),
                     ) {}
                 }
-
-                // if waiting for connection and device is bonded
-                val waitingForConnection = listOfDevicesWaitingForBond.contains(device?.address)
-                if (state == BluetoothDevice.BOND_BONDED && device != null && waitingForConnection) {
-                    listOfDevicesWaitingForBond.remove(device.address)
-                    handler?.post {
-                        gattServer?.connect(device, true)
+                if (listOfDevicesWaitingForBond.contains(device.address)) {
+                    if (bluetoothManager?.getConnectionState(
+                            device,
+                            BluetoothProfile.GATT
+                        ) == BluetoothGatt.STATE_CONNECTED
+                    ) {
+                        onBonded(device)
+                    } else {
+                        handler?.post {
+                            Log.d(TAG, "Trying to connect again")
+                            gattServer?.connect(device, false)
+                        }
                     }
                 }
+
+                // Clear list
+                listOfDevicesWaitingForBond.removeAll { it == device.address }
             }
         }
     }
