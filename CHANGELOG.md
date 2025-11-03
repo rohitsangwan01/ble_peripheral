@@ -1,3 +1,13 @@
+## 2.4.6
+
+- Added Bluetooth permission handling in all examples using `permission_handler` package
+- Added `requestPermissions()` method to example implementations for Android 12+ and iOS
+- Updated example app with proper permission flow before BLE initialization
+- Added user-friendly error messages when permissions are denied
+- Updated simple heartbeat example with permission requests
+- Updated advanced usage example with permission requests
+- Added permission dependency to example pubspec.yaml
+
 ## 2.4.5
 
 - Fixed dartdoc ambiguous reexport warnings by hiding internal Pigeon utilities

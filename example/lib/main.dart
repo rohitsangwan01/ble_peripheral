@@ -10,6 +10,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_ble_peripheral_slave/flutter_ble_peripheral_slave.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 void main() {
   runApp(const MyApp());
@@ -228,6 +229,19 @@ class _SimpleHeartbeatExamplePageState
 
   Future<void> _initializeBle() async {
     try {
+      // Request permissions first
+      _addLog('Requesting Bluetooth permissions...');
+      final hasPermissions = await heartbeatDevice.requestPermissions();
+      if (!hasPermissions) {
+        setState(() {
+          statusMessage = 'Bluetooth permissions not granted';
+        });
+        _addLog('Permissions denied. Please grant permissions in settings.');
+        return;
+      }
+      _addLog('Permissions granted');
+
+      // Then initialize BLE
       await heartbeatDevice.initialize();
       setState(() {
         isInitialized = true;
@@ -389,6 +403,52 @@ class SimpleHeartbeatDevice {
   Timer? heartbeatTimer;
   int heartbeatCounter = 0;
 
+  /// Request Bluetooth permissions
+  Future<bool> requestPermissions() async {
+    print("Requesting Bluetooth permissions...");
+
+    if (Platform.isAndroid) {
+      // Android 12+ (API 31+) requires these permissions
+      final Map<Permission, PermissionStatus> statuses = await [
+        Permission.bluetoothScan,
+        Permission.bluetoothAdvertise,
+        Permission.bluetoothConnect,
+      ].request();
+
+      // Check if all permissions are granted
+      final allGranted = statuses.values.every(
+        (status) => status.isGranted,
+      );
+
+      if (!allGranted) {
+        print("✗ Some Bluetooth permissions were denied:");
+        statuses.forEach((permission, status) {
+          print("   ${permission.toString()}: ${status.toString()}");
+        });
+        return false;
+      }
+
+      print("✓ All Bluetooth permissions granted");
+      return true;
+    } else if (Platform.isIOS) {
+      // iOS handles permissions automatically when accessing Bluetooth
+      // But we can still request them explicitly
+      final status = await Permission.bluetooth.request();
+
+      if (!status.isGranted) {
+        print("✗ Bluetooth permission denied: $status");
+        return false;
+      }
+
+      print("✓ Bluetooth permission granted");
+      return true;
+    }
+
+    // For other platforms, assume permissions are handled
+    print("✓ Bluetooth permissions (platform default)");
+    return true;
+  }
+
   Future<void> initialize() async {
     await BlePeripheral.initialize();
 
@@ -524,6 +584,7 @@ class AdvancedUsageExamplePage extends StatefulWidget {
 class _AdvancedUsageExamplePageState extends State<AdvancedUsageExamplePage> {
   final ExampleBleDeviceController _controller = ExampleBleDeviceController();
   bool _isInitialized = false;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -533,11 +594,25 @@ class _AdvancedUsageExamplePageState extends State<AdvancedUsageExamplePage> {
 
   Future<void> _initializeBle() async {
     try {
+      // Request permissions first
+      final hasPermissions = await _controller.requestPermissions();
+      if (!hasPermissions) {
+        setState(() {
+          _errorMessage =
+              "Bluetooth permissions not granted. Please grant permissions in settings.";
+        });
+        return;
+      }
+
+      // Then initialize BLE
       await _controller.initialize();
       setState(() {
         _isInitialized = true;
       });
     } catch (e) {
+      setState(() {
+        _errorMessage = "Failed to initialize BLE: $e";
+      });
       print("Failed to initialize BLE: $e");
     }
   }
@@ -560,6 +635,27 @@ class _AdvancedUsageExamplePageState extends State<AdvancedUsageExamplePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Show error message if any
+            if (_errorMessage != null)
+              Card(
+                color: Colors.red[100],
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error, color: Colors.red),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            if (_errorMessage != null) const SizedBox(height: 16),
             Text(
               'BLE Status',
               style: Theme.of(context).textTheme.headlineSmall,
@@ -711,6 +807,52 @@ class ExampleBleDeviceController {
 
   // Example state data
   int _batteryLevel = 100;
+
+  /// Request Bluetooth permissions
+  Future<bool> requestPermissions() async {
+    print("Requesting Bluetooth permissions...");
+
+    if (Platform.isAndroid) {
+      // Android 12+ (API 31+) requires these permissions
+      final Map<Permission, PermissionStatus> statuses = await [
+        Permission.bluetoothScan,
+        Permission.bluetoothAdvertise,
+        Permission.bluetoothConnect,
+      ].request();
+
+      // Check if all permissions are granted
+      final allGranted = statuses.values.every(
+        (status) => status.isGranted,
+      );
+
+      if (!allGranted) {
+        print("✗ Some Bluetooth permissions were denied:");
+        statuses.forEach((permission, status) {
+          print("   ${permission.toString()}: ${status.toString()}");
+        });
+        return false;
+      }
+
+      print("✓ All Bluetooth permissions granted");
+      return true;
+    } else if (Platform.isIOS) {
+      // iOS handles permissions automatically when accessing Bluetooth
+      // But we can still request them explicitly
+      final status = await Permission.bluetooth.request();
+
+      if (!status.isGranted) {
+        print("✗ Bluetooth permission denied: $status");
+        return false;
+      }
+
+      print("✓ Bluetooth permission granted");
+      return true;
+    }
+
+    // For other platforms, assume permissions are handled
+    print("✓ Bluetooth permissions (platform default)");
+    return true;
+  }
 
   /// Initialize the BLE peripheral
   Future<void> initialize() async {

@@ -1,9 +1,10 @@
 /// Advanced BLE Peripheral Usage Example
 ///
 /// This example demonstrates advanced patterns for using the ble_peripheral package,
-/// inspired by the HHPT Device Simulator implementation.
+/// inspired by the Device Simulator implementation.
 ///
 /// Key Features Demonstrated:
+/// - Bluetooth permission handling
 /// - Multi-characteristic BLE service setup
 /// - Periodic data transmission (heartbeat pattern)
 /// - Subscription tracking per device
@@ -18,6 +19,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_ble_peripheral_slave/flutter_ble_peripheral_slave.dart';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 /// Example BLE device controller demonstrating advanced usage patterns
 class ExampleBleDeviceController {
@@ -51,6 +53,53 @@ class ExampleBleDeviceController {
   int _batteryLevel = 100;
   bool _isMoving = false;
   bool _isCharging = true;
+
+  /// Request Bluetooth permissions
+  /// Returns true if all required permissions are granted
+  Future<bool> requestPermissions() async {
+    print("Requesting Bluetooth permissions...");
+
+    if (Platform.isAndroid) {
+      // Android 12+ (API 31+) requires these permissions
+      final Map<Permission, PermissionStatus> statuses = await [
+        Permission.bluetoothScan,
+        Permission.bluetoothAdvertise,
+        Permission.bluetoothConnect,
+      ].request();
+
+      // Check if all permissions are granted
+      final allGranted = statuses.values.every(
+        (status) => status.isGranted,
+      );
+
+      if (!allGranted) {
+        print("✗ Some Bluetooth permissions were denied:");
+        statuses.forEach((permission, status) {
+          print("   ${permission.toString()}: ${status.toString()}");
+        });
+        return false;
+      }
+
+      print("✓ All Bluetooth permissions granted");
+      return true;
+    } else if (Platform.isIOS) {
+      // iOS handles permissions automatically when accessing Bluetooth
+      // But we can still request them explicitly
+      final status = await Permission.bluetooth.request();
+
+      if (!status.isGranted) {
+        print("✗ Bluetooth permission denied: $status");
+        return false;
+      }
+
+      print("✓ Bluetooth permission granted");
+      return true;
+    }
+
+    // For other platforms, assume permissions are handled
+    print("✓ Bluetooth permissions (platform default)");
+    return true;
+  }
 
   /// Initialize the BLE peripheral
   Future<void> initialize() async {
@@ -529,6 +578,7 @@ class BlePeripheralExamplePage extends StatefulWidget {
 class _BlePeripheralExamplePageState extends State<BlePeripheralExamplePage> {
   final ExampleBleDeviceController _controller = ExampleBleDeviceController();
   bool _isInitialized = false;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -538,11 +588,25 @@ class _BlePeripheralExamplePageState extends State<BlePeripheralExamplePage> {
 
   Future<void> _initializeBle() async {
     try {
+      // Request permissions first
+      final hasPermissions = await _controller.requestPermissions();
+      if (!hasPermissions) {
+        setState(() {
+          _errorMessage =
+              "Bluetooth permissions not granted. Please grant permissions in settings.";
+        });
+        return;
+      }
+
+      // Then initialize BLE
       await _controller.initialize();
       setState(() {
         _isInitialized = true;
       });
     } catch (e) {
+      setState(() {
+        _errorMessage = "Failed to initialize BLE: $e";
+      });
       print("Failed to initialize BLE: $e");
     }
   }
@@ -564,6 +628,27 @@ class _BlePeripheralExamplePageState extends State<BlePeripheralExamplePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Show error message if any
+            if (_errorMessage != null)
+              Card(
+                color: Colors.red[100],
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error, color: Colors.red),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            if (_errorMessage != null) const SizedBox(height: 16),
             Text(
               'BLE Status',
               style: Theme.of(context).textTheme.headlineSmall,

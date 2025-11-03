@@ -146,7 +146,7 @@ if (_subscribers.isEmpty) {
 }
 ```
 
-## Common Patterns from HHPT Device Simulator
+## Common Patterns from Device Simulator
 
 ### 1. Initialization Flow
 

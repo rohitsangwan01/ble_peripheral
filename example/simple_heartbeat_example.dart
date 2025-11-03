@@ -1,23 +1,33 @@
 /// Simple Heartbeat BLE Peripheral Example
 ///
 /// This is a minimal example showing how to:
-/// 1. Initialize BLE peripheral
-/// 2. Add a service with notify characteristic
-/// 3. Send periodic heartbeat messages
-/// 4. Track connected devices
+/// 1. Request Bluetooth permissions
+/// 2. Initialize BLE peripheral
+/// 3. Add a service with notify characteristic
+/// 4. Send periodic heartbeat messages
+/// 5. Track connected devices
 ///
-/// Based on HHPT Device Simulator heartbeat implementation.
+/// Based on Device Simulator heartbeat implementation.
 
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:flutter_ble_peripheral_slave/flutter_ble_peripheral_slave.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 void main() async {
   print("=== Simple BLE Heartbeat Example ===\n");
 
   final heartbeatDevice = SimpleHeartbeatDevice();
+
+  // Request permissions first
+  final hasPermissions = await heartbeatDevice.requestPermissions();
+  if (!hasPermissions) {
+    print("\n✗ Required Bluetooth permissions not granted!");
+    print("Please grant the necessary permissions and try again.");
+    return;
+  }
 
   // Initialize and start
   await heartbeatDevice.initialize();
@@ -42,6 +52,52 @@ class SimpleHeartbeatDevice {
   Set<String> _subscribers = {};
   Timer? _heartbeatTimer;
   int _battery = 100;
+
+  /// Request Bluetooth permissions
+  Future<bool> requestPermissions() async {
+    print("Requesting Bluetooth permissions...");
+
+    if (Platform.isAndroid) {
+      // Android 12+ (API 31+) requires these permissions
+      final Map<Permission, PermissionStatus> statuses = await [
+        Permission.bluetoothScan,
+        Permission.bluetoothAdvertise,
+        Permission.bluetoothConnect,
+      ].request();
+
+      // Check if all permissions are granted
+      final allGranted = statuses.values.every(
+        (status) => status.isGranted,
+      );
+
+      if (!allGranted) {
+        print("✗ Some Bluetooth permissions were denied:");
+        statuses.forEach((permission, status) {
+          print("   ${permission.toString()}: ${status.toString()}");
+        });
+        return false;
+      }
+
+      print("✓ All Bluetooth permissions granted");
+      return true;
+    } else if (Platform.isIOS) {
+      // iOS handles permissions automatically when accessing Bluetooth
+      // But we can still request them explicitly
+      final status = await Permission.bluetooth.request();
+
+      if (!status.isGranted) {
+        print("✗ Bluetooth permission denied: $status");
+        return false;
+      }
+
+      print("✓ Bluetooth permission granted");
+      return true;
+    }
+
+    // For other platforms, assume permissions are handled
+    print("✓ Bluetooth permissions (platform default)");
+    return true;
+  }
 
   /// Initialize BLE
   Future<void> initialize() async {
