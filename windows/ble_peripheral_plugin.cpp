@@ -37,22 +37,36 @@ namespace ble_peripheral
   winrt::fire_and_forget BlePeripheralPlugin::InitializeAdapter()
   {
     auto radios = co_await Radio::GetRadiosAsync();
+    Radio bestRadio = nullptr;
     for (auto &&radio : radios)
     {
       if (radio.Kind() == RadioKind::Bluetooth)
       {
-        bluetoothRadio = radio;
-        radioStateChangedRevoker = bluetoothRadio.StateChanged(winrt::auto_revoke, {this, &BlePeripheralPlugin::Radio_StateChanged});
-        bool isOn = bluetoothRadio.State() == RadioState::On;
-        uiThreadHandler_.Post([isOn]
-                              { bleCallback->OnBleStateChange(isOn, SuccessCallback, ErrorCallback); });
-
-        break;
+        if (radio.State() == RadioState::On)
+        {
+          bestRadio = radio;
+          break;
+        }
+        if (!bestRadio)
+        {
+          bestRadio = radio;
+        }
       }
     }
-    if (!bluetoothRadio)
+
+    if (bestRadio)
+    {
+      bluetoothRadio = bestRadio;
+      radioStateChangedRevoker = bluetoothRadio.StateChanged(winrt::auto_revoke, {this, &BlePeripheralPlugin::Radio_StateChanged});
+      bool isOn = bluetoothRadio.State() == RadioState::On;
+      uiThreadHandler_.Post([isOn]
+                            { bleCallback->OnBleStateChange(isOn, SuccessCallback, ErrorCallback); });
+    }
+    else
     {
       std::cout << "Bluetooth is not available" << std::endl;
+      uiThreadHandler_.Post([]
+                            { bleCallback->OnBleStateChange(false, SuccessCallback, ErrorCallback); });
     }
   }
 

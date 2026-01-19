@@ -1,3 +1,9 @@
+## 2.4.7
+
+- Fixed Windows build configuration error (CMake target name mismatch)
+- Improved Bluetooth radio initialization on Windows to correctly select active adapter
+- Updated Windows plugin structure to match Flutter plugin requirements
+
 ## 2.4.6
 
 - Added Bluetooth permission handling in all examples using `permission_handler` package
