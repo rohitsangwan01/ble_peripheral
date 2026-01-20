@@ -589,6 +589,9 @@ class _AdvancedUsageExamplePageState extends State<AdvancedUsageExamplePage> {
   @override
   void initState() {
     super.initState();
+    _controller.onStateChanged = () {
+      if (mounted) setState(() {});
+    };
     _initializeBle();
   }
 
@@ -779,6 +782,9 @@ class _AdvancedUsageExamplePageState extends State<AdvancedUsageExamplePage> {
 
 /// Example BLE device controller demonstrating advanced usage patterns
 class ExampleBleDeviceController {
+  // Callback for state changes
+  Function? onStateChanged;
+
   // BLE state tracking
   bool isAdvertising = false;
   bool isBleOn = false;
@@ -877,6 +883,7 @@ class ExampleBleDeviceController {
     BlePeripheral.setBleStateChangeCallback((bool isOn) {
       isBleOn = isOn;
       print("BLE State Changed: ${isOn ? 'ON' : 'OFF'}");
+      onStateChanged?.call();
     });
 
     BlePeripheral.setAdvertisingStatusUpdateCallback(
@@ -887,6 +894,7 @@ class ExampleBleDeviceController {
       } else {
         print("Advertising: ${advertising ? 'Started' : 'Stopped'}");
       }
+      onStateChanged?.call();
     });
 
     BlePeripheral.setCharacteristicSubscriptionChangeCallback((

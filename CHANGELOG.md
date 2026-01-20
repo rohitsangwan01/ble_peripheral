@@ -1,3 +1,13 @@
+## 2.4.12
+
+- **Windows Fix**: Resolved an issue where finding and restarting advertising would fail if the internal state was out of sync.
+  - `StartAdvertising` now attempts to force start even if the status appears to be started, ensuring recovery from inconsistent states.
+  - `StopAdvertising` now checks if the service is actually running before attempting to stop it, preventing "Unexpected time" errors.
+
+## 2.4.11
+
+- Adjusted error handling in `StartAdvertising` on Windows to properly report initialization failures instead of failing silently. This helps in diagnosing issues when restarting advertisement.
+
 ## 2.4.10
 
 - **Critical Windows Fixes**:

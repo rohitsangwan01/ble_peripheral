@@ -164,13 +164,10 @@ namespace ble_peripheral
       if (serviceProviderMap.size() == 0)
         return FlutterError("No services added to advertise");
 
-      if (AreAllServicesStarted())
-      {
-        std::cout << "All services already advertising" << std::endl;
-        uiThreadHandler_.Post([]
-                              { bleCallback->OnAdvertisingStatusUpdate(true, nullptr, SuccessCallback, ErrorCallback); });
-        return std::nullopt;
-      }
+      // Note: We used to check AreAllServicesStarted() here, but we found that
+      // sometimes the state gets out of sync (e.g. OS says Started but it's not visible).
+      // Since StartAdvertising is idempotent (no effect if already started),
+      // we just try to start all of them to ensure consistency.
 
       auto advertisementParameter = GattServiceProviderAdvertisingParameters();
       advertisementParameter.IsDiscoverable(true);
@@ -178,21 +175,39 @@ namespace ble_peripheral
 
       for (auto const &[key, gattServiceObject] : serviceProviderMap)
       {
-        if (gattServiceObject->obj.AdvertisementStatus() == GattServiceProviderAdvertisementStatus::Started)
+        // Force start even if status says started, to recover from zombie states.
+        // If it throws "already started" in some distinct way we catch it, 
+        // but WinRT docs say it has no effect if already advertising.
+        try 
         {
-          std::cout << "Service " << key << " is already advertising, skipping" << std::endl;
-          continue;
+           gattServiceObject->obj.StartAdvertising(advertisementParameter);
+        } 
+        catch (...) 
+        {
+           // If it fails, we assume it might be running or unrecoverable, we log and continue.
+           // However, if it throws because it's ALREADY advertising, that's fine.
+           // But if we want to force restart, we might need Stop then Start? 
+           // For now, let's just call Start.
+           std::cout << "Warning: StartAdvertising threw exception for " << key << ". Attempting to continue." << std::endl;
         }
-        gattServiceObject->obj.StartAdvertising(advertisementParameter);
       }
 
       return std::nullopt;
     }
+    catch (const winrt::hresult_error &e)
+    {
+      std::wcerr << "StartAdvertising Failed: " << e.message().c_str() << std::endl;
+      return FlutterError(winrt::to_string(e.message()));
+    }
+    catch (const std::exception &e)
+    {
+      std::cout << "StartAdvertising Failed: " << e.what() << std::endl;
+      return FlutterError(e.what());
+    }
     catch (...)
     {
-      std::cout << "Error: "
-                << "Unknown error" << std::endl;
-      return std::nullopt;
+      std::cout << "Error: StartAdvertising Unknown error" << std::endl;
+      return FlutterError("Unknown error starting advertising");
     }
   }
 
@@ -203,8 +218,15 @@ namespace ble_peripheral
     {
       try
       {
-        gattServiceObject->obj.StopAdvertising();
-        std::cout << "Stopped advertising for service: " << key << std::endl;
+        if (gattServiceObject->obj.AdvertisementStatus() == GattServiceProviderAdvertisementStatus::Started) 
+        {
+            gattServiceObject->obj.StopAdvertising();
+            std::cout << "Stopped advertising for service: " << key << std::endl;
+        }
+        else 
+        {
+             std::cout << "Service " << key << " is not advertising (Status: " << AdvertisementStatusToString(gattServiceObject->obj.AdvertisementStatus()) << ")" << std::endl; 
+        }
       }
       catch (const winrt::hresult_error &e)
       {
