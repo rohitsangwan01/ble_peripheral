@@ -1,3 +1,10 @@
+## 2.4.10
+
+- **Critical Windows Fixes**:
+  - Fixed application crash when receiving GATT Write requests (addressed WinRT coroutine argument lifetime issue).
+  - Fixed memory access violation during GATT Read requests by properly capturing data buffers.
+  - Resolved concurrency issues by optimizing mutex usage in subscription handlers to prevent potential deadlocks.
+
 ## 2.4.9
 
 - Fixed potential race conditions and silent crashes in Windows implementation:

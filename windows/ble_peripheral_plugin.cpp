@@ -455,264 +455,281 @@ namespace ble_peripheral
   }
 
   /// Characteristic Listeners
-  winrt::fire_and_forget BlePeripheralPlugin::SubscribedClientsChanged(GattLocalCharacteristic const &localChar, IInspectable const &)
+  winrt::fire_and_forget BlePeripheralPlugin::SubscribedClientsChanged(GattLocalCharacteristic localChar, IInspectable const &)
   {
-    std::lock_guard<std::mutex> lock(servicesMutex);
-    try 
+    IVectorView<GattSubscribedClient> currentClients = nullptr;
+    IVectorView<GattSubscribedClient> oldClients = nullptr;
+    std::string characteristicId = guid_to_uuid(localChar.Uuid());
+
     {
-    auto characteristicId = guid_to_uuid(localChar.Uuid());
-
-    // Find GattCharacteristicObject
-    GattCharacteristicObject *gattCharacteristicObject = FindGattCharacteristicObject(characteristicId);
-
-    if (gattCharacteristicObject == nullptr)
-    {
-      std::cout << "Failed to get char " << characteristicId << std::endl;
-      co_return; 
-    }
-
-    // Compare Stored clients and New clients
-    IVectorView<GattSubscribedClient> currentClients = localChar.SubscribedClients();
-    IVectorView<GattSubscribedClient> oldClients = gattCharacteristicObject->stored_clients;
-
-    // Check if any client removed
-    for (unsigned int i = 0; i < oldClients.Size(); ++i)
-    {
-      auto oldClient = oldClients.GetAt(i);
-      bool found = false;
-      for (unsigned int j = 0; j < currentClients.Size(); ++j)
+      std::lock_guard<std::mutex> lock(servicesMutex);
+      try
       {
-        if (currentClients.GetAt(j) == oldClient)
+        // Find GattCharacteristicObject
+        GattCharacteristicObject *gattCharacteristicObject = FindGattCharacteristicObject(characteristicId);
+
+        if (gattCharacteristicObject == nullptr)
         {
-          found = true;
-          break;
+          std::cout << "Failed to get char " << characteristicId << std::endl;
+          co_return;
+        }
+
+        // Compare Stored clients and New clients
+        currentClients = localChar.SubscribedClients();
+        oldClients = gattCharacteristicObject->stored_clients;
+
+        // Update stored clients in stored char immediately while locked
+        gattCharacteristicObject->stored_clients = currentClients;
+      }
+      catch (const std::exception &e)
+      {
+        std::cout << "SubscribedClientsChanged Error: " << e.what() << std::endl;
+        co_return; // Stop if we can't get data safely
+      }
+      catch (...)
+      {
+        std::cout << "SubscribedClientsChanged Error: Unknown error" << std::endl;
+        co_return;
+      }
+    } // Unlock mutex
+
+    try
+    {
+      // Check if any client removed
+      for (unsigned int i = 0; i < oldClients.Size(); ++i)
+      {
+        auto oldClient = oldClients.GetAt(i);
+        bool found = false;
+        for (unsigned int j = 0; j < currentClients.Size(); ++j)
+        {
+          if (currentClients.GetAt(j) == oldClient)
+          {
+            found = true;
+            break;
+          }
+        }
+        if (!found)
+        {
+          // oldClient is not in currentClients, so it was removed
+          std::string deviceIdArg = ParseBluetoothClientId(oldClient.Session().DeviceId().Id());
+          try
+          {
+            auto deviceInfo = co_await DeviceInformation::CreateFromIdAsync(oldClient.Session().DeviceId().Id());
+            auto deviceName = winrt::to_string(deviceInfo.Name());
+            uiThreadHandler_.Post([deviceName, deviceIdArg, characteristicId]
+                                  {
+                                    bleCallback->OnCharacteristicSubscriptionChange(
+                                        deviceIdArg, characteristicId, false, &deviceName,
+                                        SuccessCallback, ErrorCallback);
+                                    // Notify subscription change
+                                  });
+            // Point to the local variable
+          }
+          catch (...)
+          {
+            std::cerr << "Failed to retrieve device name" << std::endl;
+          }
         }
       }
-      if (!found)
+
+      // Check if any client added
+      for (unsigned int i = 0; i < currentClients.Size(); ++i)
       {
-        // oldClient is not in currentClients, so it was removed
-        std::string deviceIdArg = ParseBluetoothClientId(oldClient.Session().DeviceId().Id());
-        try
+        auto currentClient = currentClients.GetAt(i);
+        bool found = false;
+        for (unsigned int j = 0; j < oldClients.Size(); ++j)
         {
-          auto deviceInfo = co_await DeviceInformation::CreateFromIdAsync(oldClient.Session().DeviceId().Id());
-          auto deviceName = winrt::to_string(deviceInfo.Name());
-          uiThreadHandler_.Post([deviceName, deviceIdArg, characteristicId]
+          if (oldClients.GetAt(j) == currentClient)
+          {
+            found = true;
+            break;
+          }
+        }
+        if (!found)
+        {
+          // currentClient is not in oldClients, so it was added
+          std::string deviceIdArg = ParseBluetoothClientId(currentClient.Session().DeviceId().Id());
+
+          try
+          {
+            auto deviceInfo = co_await DeviceInformation::CreateFromIdAsync(currentClient.Session().DeviceId().Id());
+            auto deviceName = winrt::to_string(deviceInfo.Name());
+            uiThreadHandler_.Post([deviceName, deviceIdArg, characteristicId]
+                                  {
+                                    bleCallback->OnCharacteristicSubscriptionChange(
+                                        deviceIdArg, characteristicId, true, &deviceName,
+                                        SuccessCallback, ErrorCallback);
+                                    // Notify subscription change
+                                  });
+            // Point to the local variable
+          }
+          catch (...)
+          {
+            std::cerr << "Failed to retrieve device name" << std::endl;
+          }
+
+          int64_t maxPuid = currentClient.Session().MaxPduSize();
+          uiThreadHandler_.Post([deviceIdArg, maxPuid]
                                 {
-                                  bleCallback->OnCharacteristicSubscriptionChange(
-                                      deviceIdArg, characteristicId, false, &deviceName,
-                                      SuccessCallback, ErrorCallback);
-                                  // Notify subscription change
+                                  bleCallback->OnMtuChange(deviceIdArg, maxPuid,
+                                                           SuccessCallback, ErrorCallback);
+                                  // Notify added device MTU change
                                 });
-          // Point to the local variable
-        }
-        catch (...)
-        {
-          std::cerr << "Failed to retrieve device name" << std::endl;
         }
       }
     }
-
-    // Check if any client added
-    for (unsigned int i = 0; i < currentClients.Size(); ++i)
+    catch (const std::exception &e)
     {
-      auto currentClient = currentClients.GetAt(i);
-      bool found = false;
-      for (unsigned int j = 0; j < oldClients.Size(); ++j)
-      {
-        if (oldClients.GetAt(j) == currentClient)
-        {
-          found = true;
-          break;
-        }
-      }
-      if (!found)
-      {
-        // currentClient is not in oldClients, so it was added
-        std::string deviceIdArg = ParseBluetoothClientId(currentClient.Session().DeviceId().Id());
-
-        try
-        {
-          auto deviceInfo = co_await DeviceInformation::CreateFromIdAsync(currentClient.Session().DeviceId().Id());
-          auto deviceName = winrt::to_string(deviceInfo.Name());
-          uiThreadHandler_.Post([deviceName, deviceIdArg, characteristicId]
-                                {
-                                  bleCallback->OnCharacteristicSubscriptionChange(
-                                      deviceIdArg, characteristicId, true, &deviceName,
-                                      SuccessCallback, ErrorCallback);
-                                  // Notify subscription change
-                                });
-          // Point to the local variable
-        }
-        catch (...)
-        {
-          std::cerr << "Failed to retrieve device name" << std::endl;
-        }
-
-        int64_t maxPuid = currentClient.Session().MaxPduSize();
-        uiThreadHandler_.Post([deviceIdArg, maxPuid]
-                              {
-                                bleCallback->OnMtuChange(deviceIdArg, maxPuid,
-                                                         SuccessCallback, ErrorCallback);
-                                // Notify added device MTU change
-                              });
-      }
-    }
-
-    // Update stored clients in stored char
-    gattCharacteristicObject->stored_clients = currentClients;
-    }
-    catch (const std::exception &e) 
-    {
-       std::cout << "SubscribedClientsChanged Error: " << e.what() << std::endl;
+      std::cout << "SubscribedClientsChanged processing Error: " << e.what() << std::endl;
     }
     catch (...)
     {
-       std::cout << "SubscribedClientsChanged Error: Unknown error" << std::endl;
+      std::cout << "SubscribedClientsChanged processing Error: Unknown error" << std::endl;
     }
   }
 
-  winrt::fire_and_forget BlePeripheralPlugin::ReadRequestedAsync(GattLocalCharacteristic const &localChar, GattReadRequestedEventArgs args)
-  {
-    try 
-    {
-    // Need to lock if we access shared state?
-    // This executes async.
-    // We are not accessing map here directly, except if we needed to.
-    // localChar usage relies on object being alive. WinRT objects are ref counted.
-    std::string characteristicId = to_uuidstr(localChar.Uuid());
-    std::vector<uint8_t> *value_arg = nullptr;
-    IBuffer charValue = localChar.StaticValue();
-    // IBuffer charValue = nullptr;
-    if (charValue != nullptr)
-    {
-      auto bytevc = to_bytevc(charValue);
-      value_arg = &bytevc;
-    }
-    
-    auto deferral = args.GetDeferral();
-    auto request = co_await args.GetRequestAsync();
-    if (request == nullptr)
-    {
-      // No access allowed to the device.  Application should indicate this to the user.
-      std::cout << "No access allowed to the device" << std::endl;
-      deferral.Complete();
-      co_return;
-    }
-
-    std::string deviceId = ParseBluetoothClientId(args.Session().DeviceId().Id());
-    int64_t offset = request.Offset();
-  
-    uiThreadHandler_.Post([deviceId, characteristicId, offset, value_arg, deferral, request]
-                          {
-                            bleCallback->OnReadRequest(
-                                deviceId, characteristicId, offset, value_arg,
-                                // SuccessCallback,
-                                [deferral, request](const ReadRequestResult *readResult)
-                                {
-                                  try
-                                  {
-                                  if (readResult == nullptr)
-                                  {
-                                    std::cout << "ReadRequestResult is null" << std::endl;
-                                    // request.RespondWithProtocolError(GattProtocolError::InvalidHandle());
-                                  }
-                                  else
-                                  {
-                                    // FIXME: use offset as well
-                                    std::vector<uint8_t> resultVal = readResult->value();
-                                    IBuffer result = from_bytevc(resultVal);
-
-                                    // Send response
-                                    DataWriter writer;
-                                    writer.ByteOrder(ByteOrder::LittleEndian);
-                                    writer.WriteBuffer(result);
-                                    request.RespondWithValue(writer.DetachBuffer());
-                                  }
-                                  }
-                                  catch(...) 
-                                  {
-                                     std::cout << "ReadRequest callback Error" << std::endl;
-                                  }
-                                  deferral.Complete();
-                                },
-                                // ErrorCallback
-                                [deferral](const FlutterError &error)
-                                {
-                                  std::cout << "ErrorCallback: " << error.message() << std::endl;
-                                  deferral.Complete();
-                                });
-                            // Handle readRequest result
-                          });
-    }
-    catch (...)
-    {
-        std::cout << "ReadRequestedAsync Error" << std::endl;
-    }
-  }
-
-  winrt::fire_and_forget BlePeripheralPlugin::WriteRequestedAsync(GattLocalCharacteristic const &localChar, GattWriteRequestedEventArgs args)
+  winrt::fire_and_forget BlePeripheralPlugin::ReadRequestedAsync(GattLocalCharacteristic localChar, GattReadRequestedEventArgs args)
   {
     try
     {
-    auto deferral = args.GetDeferral();
-    GattWriteRequest request = co_await args.GetRequestAsync();
-    if (request == nullptr)
-    {
-      std::cout << "No access allowed to the device" << std::endl;
-      deferral.Complete();
-      co_return;
-    }
+      std::string characteristicId = to_uuidstr(localChar.Uuid());
+      
+      // Capture value by value for lambda
+      std::vector<uint8_t> val_storage;
+      bool has_value = false;
+      IBuffer charValue = localChar.StaticValue();
+      if (charValue != nullptr)
+      {
+        val_storage = to_bytevc(charValue);
+        has_value = true;
+      }
 
-    std::string deviceId = ParseBluetoothClientId(args.Session().DeviceId().Id());
+      auto deferral = args.GetDeferral();
+      auto request = co_await args.GetRequestAsync();
+      if (request == nullptr)
+      {
+        // No access allowed to the device.  Application should indicate this to the user.
+        std::cout << "No access allowed to the device" << std::endl;
+        deferral.Complete();
+        co_return;
+      }
 
-    uiThreadHandler_.Post([localChar, request, deferral, deviceId]
-                          {
-                            try
+      std::string deviceId = ParseBluetoothClientId(args.Session().DeviceId().Id());
+      int64_t offset = request.Offset();
+
+      uiThreadHandler_.Post([deviceId, characteristicId, offset, val_storage, has_value, deferral, request]() mutable
                             {
-                            auto characteristicId = guid_to_uuid(localChar.Uuid());
-                            int64_t offset = request.Offset();
-                            auto bytevc = to_bytevc(request.Value());
-                            std::vector<uint8_t> *value_arg = &bytevc;
+                              std::vector<uint8_t> *value_arg = has_value ? &val_storage : nullptr;
+                              
+                              bleCallback->OnReadRequest(
+                                  deviceId, characteristicId, offset, value_arg,
+                                  // SuccessCallback,
+                                  [deferral, request](const ReadRequestResult *readResult)
+                                  {
+                                    try
+                                    {
+                                      if (readResult == nullptr)
+                                      {
+                                        std::cout << "ReadRequestResult is null" << std::endl;
+                                        // request.RespondWithProtocolError(GattProtocolError::InvalidHandle());
+                                      }
+                                      else
+                                      {
+                                        // FIXME: use offset as well
+                                        std::vector<uint8_t> resultVal = readResult->value();
+                                        IBuffer result = from_bytevc(resultVal);
 
-                            bleCallback->OnWriteRequest(
-                                deviceId, characteristicId, offset, value_arg,
-                                // SuccessCallback
-                                [deferral, request, localChar](const WriteRequestResult *writeResult)
-                                {
-                                  try
+                                        // Send response
+                                        DataWriter writer;
+                                        writer.ByteOrder(ByteOrder::LittleEndian);
+                                        writer.WriteBuffer(result);
+                                        request.RespondWithValue(writer.DetachBuffer());
+                                      }
+                                    }
+                                    catch (...)
+                                    {
+                                      std::cout << "ReadRequest callback Error" << std::endl;
+                                    }
+                                    deferral.Complete();
+                                  },
+                                  // ErrorCallback
+                                  [deferral](const FlutterError &error)
                                   {
-                                  // respond with error if status is not null,
-                                  // FIXME: parse proper error
-                                  if (writeResult->status() != nullptr)
-                                    // request.RespondWithProtocolError(GattProtocolError::InvalidHandle());
-                                    std::cout << "WriteRequestResult should throw error" << std::endl;
-                                  else
-                                    request.Respond();
-                                  }
-                                  catch(...)
-                                  {
-                                    std::cout << "WriteRequest callback Error" << std::endl;
-                                  }
-                                  deferral.Complete();
-                                },
-                                // ErrorCallback
-                                [deferral](const FlutterError &error)
-                                {
-                                  std::cout << "ErrorCallback: " << error.message() << std::endl;
-                                  deferral.Complete();
-                                });
-                            }
-                            catch(...)
-                            {
-                                std::cout << "WriteRequestedAsync UI Error" << std::endl;
-                                deferral.Complete();
-                            }
-                            // Write Request
-                          });
+                                    std::cout << "ErrorCallback: " << error.message() << std::endl;
+                                    deferral.Complete();
+                                  });
+                              // Handle readRequest result
+                            });
     }
     catch (...)
     {
-       std::cout << "WriteRequestedAsync Error" << std::endl;
+      std::cout << "ReadRequestedAsync Error" << std::endl;
+    }
+  }
+
+  winrt::fire_and_forget BlePeripheralPlugin::WriteRequestedAsync(GattLocalCharacteristic localChar, GattWriteRequestedEventArgs args)
+  {
+    try
+    {
+      auto deferral = args.GetDeferral();
+      GattWriteRequest request = co_await args.GetRequestAsync();
+      if (request == nullptr)
+      {
+        std::cout << "No access allowed to the device" << std::endl;
+        deferral.Complete();
+        co_return;
+      }
+
+      std::string deviceId = ParseBluetoothClientId(args.Session().DeviceId().Id());
+
+      uiThreadHandler_.Post([localChar, request, deferral, deviceId]
+                            {
+                              try
+                              {
+                                auto characteristicId = guid_to_uuid(localChar.Uuid());
+                                int64_t offset = request.Offset();
+                                auto bytevc = to_bytevc(request.Value());
+                                std::vector<uint8_t> *value_arg = &bytevc;
+
+                                bleCallback->OnWriteRequest(
+                                    deviceId, characteristicId, offset, value_arg,
+                                    // SuccessCallback
+                                    [deferral, request, localChar](const WriteRequestResult *writeResult)
+                                    {
+                                      try
+                                      {
+                                        // respond with error if status is not null,
+                                        // FIXME: parse proper error
+                                        if (writeResult->status() != nullptr)
+                                          // request.RespondWithProtocolError(GattProtocolError::InvalidHandle());
+                                          std::cout << "WriteRequestResult should throw error" << std::endl;
+                                        else
+                                          request.Respond();
+                                      }
+                                      catch (...)
+                                      {
+                                        std::cout << "WriteRequest callback Error" << std::endl;
+                                      }
+                                      deferral.Complete();
+                                    },
+                                    // ErrorCallback
+                                    [deferral](const FlutterError &error)
+                                    {
+                                      std::cout << "ErrorCallback: " << error.message() << std::endl;
+                                      deferral.Complete();
+                                    });
+                              }
+                              catch (...)
+                              {
+                                std::cout << "WriteRequestedAsync UI Error" << std::endl;
+                                deferral.Complete();
+                              }
+                              // Write Request
+                            });
+    }
+    catch (...)
+    {
+      std::cout << "WriteRequestedAsync Error" << std::endl;
     }
   }
 
