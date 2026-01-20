@@ -1,6 +1,6 @@
 name: flutter_ble_peripheral_slave
 description: Ble peripheral is a Flutter plugin that allows you to use your device as Bluetooth Low Energy (BLE) peripheral
-version: 2.4.7
+version: 2.4.8
 homepage: https://github.com/FaroukBoussarsar/ble_peripheral
 repository: https://github.com/FaroukBoussarsar/ble_peripheral
 issue_tracker: https://github.com/FaroukBoussarsar/ble_peripheral/issues

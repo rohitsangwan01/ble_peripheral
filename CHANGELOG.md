@@ -1,3 +1,7 @@
+## 2.4.8
+
+- Fixed Windows silent crash by adding try-catch blocks around characteristic subscription logic
+
 ## 2.4.7
 
 - Fixed Windows build configuration error (CMake target name mismatch)

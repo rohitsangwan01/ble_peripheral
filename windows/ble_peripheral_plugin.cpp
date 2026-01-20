@@ -212,16 +212,29 @@ namespace ble_peripheral
       const std::vector<uint8_t> &value,
       const std::string *device_id)
   {
-    GattCharacteristicObject *gattCharacteristicObject = FindGattCharacteristicObject(characteristic_id);
-    if (gattCharacteristicObject == nullptr)
-      return FlutterError("Failed to get this characteristic");
+    try
+    {
+      GattCharacteristicObject *gattCharacteristicObject = FindGattCharacteristicObject(characteristic_id);
+      if (gattCharacteristicObject == nullptr)
+        return FlutterError("Failed to get this characteristic");
 
-    IBuffer bytes = from_bytevc(value);
-    DataWriter writer;
-    writer.ByteOrder(ByteOrder::LittleEndian);
-    writer.WriteBuffer(bytes);
-    gattCharacteristicObject->obj.NotifyValueAsync(writer.DetachBuffer());
-    return std::nullopt;
+      IBuffer bytes = from_bytevc(value);
+      DataWriter writer;
+      writer.ByteOrder(ByteOrder::LittleEndian);
+      writer.WriteBuffer(bytes);
+      gattCharacteristicObject->obj.NotifyValueAsync(writer.DetachBuffer());
+      return std::nullopt;
+    }
+    catch (const std::exception &e)
+    {
+      std::cout << "UpdateCharacteristic Error: " << e.what() << std::endl;
+      return FlutterError(e.what());
+    }
+    catch (...)
+    {
+      std::cout << "UpdateCharacteristic Error: Unknown error" << std::endl;
+      return FlutterError("Unknown error during characteristic update");
+    }
   }
 
   // Helpers
@@ -420,6 +433,8 @@ namespace ble_peripheral
   /// Characteristic Listeners
   winrt::fire_and_forget BlePeripheralPlugin::SubscribedClientsChanged(GattLocalCharacteristic const &localChar, IInspectable const &)
   {
+    try 
+    {
     auto characteristicId = guid_to_uuid(localChar.Uuid());
 
     // Find GattCharacteristicObject
@@ -428,7 +443,7 @@ namespace ble_peripheral
     if (gattCharacteristicObject == nullptr)
     {
       std::cout << "Failed to get char " << characteristicId << std::endl;
-      co_return;
+      co_return; 
     }
 
     // Compare Stored clients and New clients
@@ -520,6 +535,15 @@ namespace ble_peripheral
 
     // Update stored clients in stored char
     gattCharacteristicObject->stored_clients = currentClients;
+    }
+    catch (const std::exception &e) 
+    {
+       std::cout << "SubscribedClientsChanged Error: " << e.what() << std::endl;
+    }
+    catch (...)
+    {
+       std::cout << "SubscribedClientsChanged Error: Unknown error" << std::endl;
+    }
   }
 
   winrt::fire_and_forget BlePeripheralPlugin::ReadRequestedAsync(GattLocalCharacteristic const &localChar, GattReadRequestedEventArgs args)
