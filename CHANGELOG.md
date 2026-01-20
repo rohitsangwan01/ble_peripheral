@@ -1,3 +1,10 @@
+## 2.4.9
+
+- Fixed potential race conditions and silent crashes in Windows implementation:
+  - Added mutex protection for service map access
+  - Added comprehensive try-catch blocks in characteristic subscription and request handlers
+  - Improved error handling for device information retrieval
+
 ## 2.4.8
 
 - Fixed Windows silent crash by adding try-catch blocks around characteristic subscription logic

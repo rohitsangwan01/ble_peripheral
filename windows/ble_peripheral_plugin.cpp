@@ -20,6 +20,7 @@ namespace ble_peripheral
   std::unique_ptr<BleCallback> bleCallback;
   std::map<std::string, GattServiceProviderObject *> serviceProviderMap;
   std::mutex cout_mutex;
+  std::mutex servicesMutex;
 
   // static
   void BlePeripheralPlugin::RegisterWithRegistrar(flutter::PluginRegistrarWindows *registrar)
@@ -78,6 +79,7 @@ namespace ble_peripheral
 
   ErrorOr<std::optional<bool>> BlePeripheralPlugin::IsAdvertising()
   {
+    std::lock_guard<std::mutex> lock(servicesMutex);
     // Check is any service is advertising, or if services list is empty
     // Get serviceProviderMap length
     if (serviceProviderMap.size() == 0)
@@ -105,6 +107,7 @@ namespace ble_peripheral
 
   std::optional<FlutterError> BlePeripheralPlugin::RemoveService(const std::string &service_id)
   {
+    std::lock_guard<std::mutex> lock(servicesMutex);
     // lower case the service_id
     std::string serviceId = to_lower_case(service_id);
     if (serviceProviderMap.find(serviceId) == serviceProviderMap.end())
@@ -113,6 +116,12 @@ namespace ble_peripheral
       return FlutterError("Service not found");
     }
     auto gattServiceObject = serviceProviderMap[serviceId];
+    // Release mutex before disposal to avoid deadlocks if disposal triggers callbacks that need mutex
+    // But map needs to stay consistent. disposeGattServiceObject doesn't call back into plugin methods that lock? 
+    // It calls AdvertisementStatusChanged... better to keep lock but ensure dispose doesn't re-lock.
+    // However, if we remove from map first, then dispose.
+    
+    // Actually, let's keep it simple. Lock covers the whole operation.
     disposeGattServiceObject(gattServiceObject);
     serviceProviderMap.erase(serviceId);
     return std::nullopt;
@@ -120,6 +129,7 @@ namespace ble_peripheral
 
   std::optional<FlutterError> BlePeripheralPlugin::ClearServices()
   {
+    std::lock_guard<std::mutex> lock(servicesMutex);
     for (auto const &[key, gattServiceObject] : serviceProviderMap)
     {
       disposeGattServiceObject(gattServiceObject);
@@ -131,6 +141,7 @@ namespace ble_peripheral
 
   ErrorOr<flutter::EncodableList> BlePeripheralPlugin::GetServices()
   {
+    std::lock_guard<std::mutex> lock(servicesMutex);
     flutter::EncodableList services = flutter::EncodableList();
     for (auto const &[key, gattServiceObject] : serviceProviderMap)
     {
@@ -146,6 +157,7 @@ namespace ble_peripheral
       const ManufacturerData *manufacturer_data,
       bool add_manufacturer_data_in_scan_response)
   {
+    std::lock_guard<std::mutex> lock(servicesMutex);
     try
     {
       // check if services are empty
@@ -186,6 +198,7 @@ namespace ble_peripheral
 
   std::optional<FlutterError> BlePeripheralPlugin::StopAdvertising()
   {
+    std::lock_guard<std::mutex> lock(servicesMutex);
     for (auto const &[key, gattServiceObject] : serviceProviderMap)
     {
       try
@@ -212,6 +225,7 @@ namespace ble_peripheral
       const std::vector<uint8_t> &value,
       const std::string *device_id)
   {
+    std::lock_guard<std::mutex> lock(servicesMutex);
     try
     {
       GattCharacteristicObject *gattCharacteristicObject = FindGattCharacteristicObject(characteristic_id);
@@ -240,6 +254,7 @@ namespace ble_peripheral
   // Helpers
   winrt::fire_and_forget BlePeripheralPlugin::AddServiceAsync(const BleService &service)
   {
+    std::lock_guard<std::mutex> lock(servicesMutex);
     auto serviceUuid = service.uuid();
     try
     {
@@ -407,6 +422,15 @@ namespace ble_peripheral
   void BlePeripheralPlugin::ServiceProvider_AdvertisementStatusChanged(GattServiceProvider const &sender, GattServiceProviderAdvertisementStatusChangedEventArgs const &args)
   {
     std::lock_guard<std::mutex> lock(cout_mutex);
+    // Lock services map here too? 
+    // This handler uses guid_to_uuid, and potentially could trigger AreAllServicesStarted.
+    // Yes, AreAllServicesStarted iterates the map. It must be locked.
+    // But servicesMutex lock order is important. If AddService holds servicesMutex and calls something...
+    // AddService calls CreateAsync, then Setup. This handler comes from OS.
+    
+    // We can use a separate optional lock for the check? Or just lock servicesMutex.
+    std::lock_guard<std::mutex> servicesLock(servicesMutex);
+    
     auto serviceUuid = guid_to_uuid(sender.Service().Uuid());
     if (args.Error() != BluetoothError::Success)
     {
@@ -433,6 +457,7 @@ namespace ble_peripheral
   /// Characteristic Listeners
   winrt::fire_and_forget BlePeripheralPlugin::SubscribedClientsChanged(GattLocalCharacteristic const &localChar, IInspectable const &)
   {
+    std::lock_guard<std::mutex> lock(servicesMutex);
     try 
     {
     auto characteristicId = guid_to_uuid(localChar.Uuid());
@@ -548,6 +573,12 @@ namespace ble_peripheral
 
   winrt::fire_and_forget BlePeripheralPlugin::ReadRequestedAsync(GattLocalCharacteristic const &localChar, GattReadRequestedEventArgs args)
   {
+    try 
+    {
+    // Need to lock if we access shared state?
+    // This executes async.
+    // We are not accessing map here directly, except if we needed to.
+    // localChar usage relies on object being alive. WinRT objects are ref counted.
     std::string characteristicId = to_uuidstr(localChar.Uuid());
     std::vector<uint8_t> *value_arg = nullptr;
     IBuffer charValue = localChar.StaticValue();
@@ -578,6 +609,8 @@ namespace ble_peripheral
                                 // SuccessCallback,
                                 [deferral, request](const ReadRequestResult *readResult)
                                 {
+                                  try
+                                  {
                                   if (readResult == nullptr)
                                   {
                                     std::cout << "ReadRequestResult is null" << std::endl;
@@ -595,6 +628,11 @@ namespace ble_peripheral
                                     writer.WriteBuffer(result);
                                     request.RespondWithValue(writer.DetachBuffer());
                                   }
+                                  }
+                                  catch(...) 
+                                  {
+                                     std::cout << "ReadRequest callback Error" << std::endl;
+                                  }
                                   deferral.Complete();
                                 },
                                 // ErrorCallback
@@ -605,10 +643,17 @@ namespace ble_peripheral
                                 });
                             // Handle readRequest result
                           });
+    }
+    catch (...)
+    {
+        std::cout << "ReadRequestedAsync Error" << std::endl;
+    }
   }
 
   winrt::fire_and_forget BlePeripheralPlugin::WriteRequestedAsync(GattLocalCharacteristic const &localChar, GattWriteRequestedEventArgs args)
   {
+    try
+    {
     auto deferral = args.GetDeferral();
     GattWriteRequest request = co_await args.GetRequestAsync();
     if (request == nullptr)
@@ -622,6 +667,8 @@ namespace ble_peripheral
 
     uiThreadHandler_.Post([localChar, request, deferral, deviceId]
                           {
+                            try
+                            {
                             auto characteristicId = guid_to_uuid(localChar.Uuid());
                             int64_t offset = request.Offset();
                             auto bytevc = to_bytevc(request.Value());
@@ -632,6 +679,8 @@ namespace ble_peripheral
                                 // SuccessCallback
                                 [deferral, request, localChar](const WriteRequestResult *writeResult)
                                 {
+                                  try
+                                  {
                                   // respond with error if status is not null,
                                   // FIXME: parse proper error
                                   if (writeResult->status() != nullptr)
@@ -639,6 +688,11 @@ namespace ble_peripheral
                                     std::cout << "WriteRequestResult should throw error" << std::endl;
                                   else
                                     request.Respond();
+                                  }
+                                  catch(...)
+                                  {
+                                    std::cout << "WriteRequest callback Error" << std::endl;
+                                  }
                                   deferral.Complete();
                                 },
                                 // ErrorCallback
@@ -647,13 +701,24 @@ namespace ble_peripheral
                                   std::cout << "ErrorCallback: " << error.message() << std::endl;
                                   deferral.Complete();
                                 });
-
+                            }
+                            catch(...)
+                            {
+                                std::cout << "WriteRequestedAsync UI Error" << std::endl;
+                                deferral.Complete();
+                            }
                             // Write Request
                           });
+    }
+    catch (...)
+    {
+       std::cout << "WriteRequestedAsync Error" << std::endl;
+    }
   }
 
   void BlePeripheralPlugin::disposeGattServiceObject(GattServiceProviderObject *gattServiceObject)
   {
+    std::lock_guard<std::mutex> lock(servicesMutex);
     auto serviceId = guid_to_uuid(gattServiceObject->obj.Service().Uuid());
     try
     {
@@ -817,6 +882,11 @@ namespace ble_peripheral
 
   GattCharacteristicObject *BlePeripheralPlugin::FindGattCharacteristicObject(std::string characteristicId)
   {
+    // NO std::lock_guard<std::mutex> lock(servicesMutex); 
+    // This helper is called by methods that ALREADY hold the lock (UpdateCharacteristic, etc.)
+    // If we lock here, we will deadlock (std::mutex is not recursive).
+    // Ensure ALL callers lock before calling this.
+    
     // This might return wrong result if multiple services have same characteristic Id
     std::string loweCaseCharId = to_lower_case(characteristicId);
     for (auto const &[key, gattServiceObject] : serviceProviderMap)
@@ -832,6 +902,9 @@ namespace ble_peripheral
 
   bool BlePeripheralPlugin::AreAllServicesStarted()
   {
+    // LOCK assumed by caller or added here? 
+    // It is called by IsAdvertising (locks), StartAdvertising (locks), ServiceProvider_AdvertisementStatusChanged (locks).
+    // So NO lock here to avoid recursive lock.
     for (auto const &[key, gattServiceObject] : serviceProviderMap)
     {
       if (gattServiceObject->obj.AdvertisementStatus() != GattServiceProviderAdvertisementStatus::Started)
