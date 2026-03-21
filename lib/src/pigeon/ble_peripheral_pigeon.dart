@@ -94,6 +94,7 @@ class BlePeripheralPigeon extends BlePeripheralInterface {
     int? timeout,
     ManufacturerData? manufacturerData,
     bool addManufacturerDataInScanResponse = false,
+    bool requireBonding = true,
   }) {
     if (defaultTargetPlatform == TargetPlatform.windows &&
         manufacturerData == null) {
@@ -104,7 +105,7 @@ class BlePeripheralPigeon extends BlePeripheralInterface {
       );
     }
     return _channel.startAdvertising(services, localName, timeout,
-        manufacturerData, addManufacturerDataInScanResponse);
+        manufacturerData, addManufacturerDataInScanResponse, requireBonding);
   }
 
   /// Stop advertising

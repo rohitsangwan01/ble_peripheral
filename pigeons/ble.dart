@@ -99,6 +99,7 @@ abstract class BlePeripheralChannel {
     int? timeout,
     ManufacturerData? manufacturerData,
     bool addManufacturerDataInScanResponse,
+    bool requireBonding,
   );
 
   void updateCharacteristic(

@@ -73,6 +73,7 @@ class BlePeripheral {
     int? timeout,
     ManufacturerData? manufacturerData,
     bool addManufacturerDataInScanResponse = false,
+    bool requireBonding = true,
   }) {
     return _platform.startAdvertising(
       services: services,
@@ -80,6 +81,7 @@ class BlePeripheral {
       timeout: timeout,
       manufacturerData: manufacturerData,
       addManufacturerDataInScanResponse: addManufacturerDataInScanResponse,
+      requireBonding: requireBonding,
     );
   }
 
