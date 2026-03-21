@@ -303,7 +303,7 @@ interface BlePeripheralChannel {
   fun removeService(serviceId: String)
   fun clearServices()
   fun getServices(): List<String>
-  fun startAdvertising(services: List<String>, localName: String?, timeout: Long?, manufacturerData: ManufacturerData?, addManufacturerDataInScanResponse: Boolean)
+  fun startAdvertising(services: List<String>, localName: String?, timeout: Long?, manufacturerData: ManufacturerData?, addManufacturerDataInScanResponse: Boolean, requireBonding: Boolean)
   fun updateCharacteristic(characteristicId: String, value: ByteArray, deviceId: String?)
 
   companion object {
@@ -469,8 +469,9 @@ interface BlePeripheralChannel {
             val timeoutArg = args[2] as Long?
             val manufacturerDataArg = args[3] as ManufacturerData?
             val addManufacturerDataInScanResponseArg = args[4] as Boolean
+            val requireBondingArg = args[5] as Boolean
             val wrapped: List<Any?> = try {
-              api.startAdvertising(servicesArg, localNameArg, timeoutArg, manufacturerDataArg, addManufacturerDataInScanResponseArg)
+              api.startAdvertising(servicesArg, localNameArg, timeoutArg, manufacturerDataArg, addManufacturerDataInScanResponseArg, requireBondingArg)
               listOf(null)
             } catch (exception: Throwable) {
               wrapError(exception)

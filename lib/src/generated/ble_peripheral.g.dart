@@ -509,7 +509,7 @@ class BlePeripheralChannel {
     }
   }
 
-  Future<void> startAdvertising(List<String> services, String? localName, int? timeout, ManufacturerData? manufacturerData, bool addManufacturerDataInScanResponse) async {
+  Future<void> startAdvertising(List<String> services, String? localName, int? timeout, ManufacturerData? manufacturerData, bool addManufacturerDataInScanResponse, bool requireBonding) async {
     final String pigeonVar_channelName = 'dev.flutter.pigeon.ble_peripheral.BlePeripheralChannel.startAdvertising$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
@@ -517,7 +517,7 @@ class BlePeripheralChannel {
       binaryMessenger: pigeonVar_binaryMessenger,
     );
     final List<Object?>? pigeonVar_replyList =
-        await pigeonVar_channel.send(<Object?>[services, localName, timeout, manufacturerData, addManufacturerDataInScanResponse]) as List<Object?>?;
+        await pigeonVar_channel.send(<Object?>[services, localName, timeout, manufacturerData, addManufacturerDataInScanResponse, requireBonding]) as List<Object?>?;
     if (pigeonVar_replyList == null) {
       throw _createConnectionError(pigeonVar_channelName);
     } else if (pigeonVar_replyList.length > 1) {

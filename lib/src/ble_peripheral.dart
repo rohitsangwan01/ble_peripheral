@@ -67,19 +67,32 @@ class BlePeripheral {
 
   /// Start advertising with the given services and local name
   /// make sure to add services before calling this method
+  ///
+  /// [localName] must not exceed 8 characters. Longer names cause
+  /// `ADVERTISE_FAILED_DATA_TOO_LARGE` on Android when combined with a
+  /// 128-bit service UUID in the same 31-byte advertising packet.
+  /// Note: [localName] is ignored on iOS.
   static Future<void> startAdvertising({
     required List<String> services,
     String? localName,
     int? timeout,
     ManufacturerData? manufacturerData,
     bool addManufacturerDataInScanResponse = false,
+    bool requireBonding = true,
   }) {
+    if (localName != null && localName.length > 8) {
+      throw ArgumentError(
+        'localName "$localName" is ${localName.length} characters. '
+        'Maximum allowed is 8 to avoid ADVERTISE_FAILED_DATA_TOO_LARGE.',
+      );
+    }
     return _platform.startAdvertising(
       services: services,
       localName: localName,
       timeout: timeout,
       manufacturerData: manufacturerData,
       addManufacturerDataInScanResponse: addManufacturerDataInScanResponse,
+      requireBonding: requireBonding,
     );
   }
 

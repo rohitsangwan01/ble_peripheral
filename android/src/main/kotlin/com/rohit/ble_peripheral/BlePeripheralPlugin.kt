@@ -50,6 +50,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
     private val emptyBytes = byteArrayOf()
     private val listOfDevicesWaitingForBond = mutableListOf<String>()
     private var isAdvertising: Boolean? = null
+    private var requireBonding: Boolean = true
 
     override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         BlePeripheralChannel.setUp(flutterPluginBinding.binaryMessenger, this)
@@ -116,14 +117,16 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
         timeout: Long?,
         manufacturerData: ManufacturerData?,
         addManufacturerDataInScanResponse: Boolean,
+        requireBonding: Boolean,
     ) {
+        this.requireBonding = requireBonding
         if (!isBluetoothEnabled()) {
             enableBluetooth()
             throw Exception("Bluetooth is not enabled")
         }
 
         handler?.post { // set up advertising setting
-            localName?.let { bluetoothManager?.adapter?.name = it }
+            bluetoothManager?.adapter?.name = localName ?: android.os.Build.MODEL
             val advertiseSettings = AdvertiseSettings.Builder()
                 .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
                 .setConnectable(true)
@@ -290,13 +293,13 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                 super.onConnectionStateChange(device, status, newState)
                 when (newState) {
                     BluetoothProfile.STATE_CONNECTED -> {
-                        if (device.bondState == BluetoothDevice.BOND_NONE) {
+                        if (requireBonding && device.bondState == BluetoothDevice.BOND_NONE) {
                             // Wait for bonding
                             listOfDevicesWaitingForBond.add(device.address)
                             device.createBond()
-                        } else if (device.bondState == BluetoothDevice.BOND_BONDED) {
+                        } else if (!requireBonding || device.bondState == BluetoothDevice.BOND_BONDED) {
                             handler?.post {
-                                gattServer?.connect(device, true)
+                                gattServer?.connect(device, requireBonding)
                             }
                             synchronized(bluetoothDevicesMap) {
                                 bluetoothDevicesMap.put(
