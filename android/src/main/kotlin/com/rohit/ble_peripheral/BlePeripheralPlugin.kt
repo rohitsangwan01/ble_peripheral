@@ -126,7 +126,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
         }
 
         handler?.post { // set up advertising setting
-            localName?.let { bluetoothManager?.adapter?.name = it }
+            bluetoothManager?.adapter?.name = localName ?: android.os.Build.MODEL
             val advertiseSettings = AdvertiseSettings.Builder()
                 .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
                 .setConnectable(true)
