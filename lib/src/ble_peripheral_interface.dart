@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:ble_peripheral/ble_peripheral.dart';
+import 'package:flutter_ble_peripheral_slave/flutter_ble_peripheral_slave.dart';
 
 abstract class BlePeripheralInterface {
   Future initialize();

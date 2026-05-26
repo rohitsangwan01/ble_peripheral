@@ -1,3 +1,70 @@
+## 2.4.12
+
+- **Windows Fix**: Resolved an issue where finding and restarting advertising would fail if the internal state was out of sync.
+  - `StartAdvertising` now attempts to force start even if the status appears to be started, ensuring recovery from inconsistent states.
+  - `StopAdvertising` now checks if the service is actually running before attempting to stop it, preventing "Unexpected time" errors.
+
+## 2.4.11
+
+- Adjusted error handling in `StartAdvertising` on Windows to properly report initialization failures instead of failing silently. This helps in diagnosing issues when restarting advertisement.
+
+## 2.4.10
+
+- **Critical Windows Fixes**:
+  - Fixed application crash when receiving GATT Write requests (addressed WinRT coroutine argument lifetime issue).
+  - Fixed memory access violation during GATT Read requests by properly capturing data buffers.
+  - Resolved concurrency issues by optimizing mutex usage in subscription handlers to prevent potential deadlocks.
+
+## 2.4.9
+
+- Fixed potential race conditions and silent crashes in Windows implementation:
+  - Added mutex protection for service map access
+  - Added comprehensive try-catch blocks in characteristic subscription and request handlers
+  - Improved error handling for device information retrieval
+
+## 2.4.8
+
+- Fixed Windows silent crash by adding try-catch blocks around characteristic subscription logic
+
+## 2.4.7
+
+- Fixed Windows build configuration error (CMake target name mismatch)
+- Improved Bluetooth radio initialization on Windows to correctly select active adapter
+- Updated Windows plugin structure to match Flutter plugin requirements
+
+## 2.4.6
+
+- Added Bluetooth permission handling in all examples using `permission_handler` package
+- Added `requestPermissions()` method to example implementations for Android 12+ and iOS
+- Updated example app with proper permission flow before BLE initialization
+- Added user-friendly error messages when permissions are denied
+- Updated simple heartbeat example with permission requests
+- Updated advanced usage example with permission requests
+- Added permission dependency to example pubspec.yaml
+
+## 2.4.5
+
+- Fixed dartdoc ambiguous reexport warnings by hiding internal Pigeon utilities
+- Improved pub.dev scoring compliance
+
+## 2.4.4
+
+- Fixed documentation generation issues
+- Improved package metadata for pub.dev
+
+## 2.4.3
+
+- Fixed podspec file naming to match package name (`flutter_ble_peripheral_slave.podspec`)
+- Updated podspec metadata with correct version and repository information
+- Added complete Flutter example app with Material Design UI
+- Fixed iOS/Android project structure for example app
+- Updated all package imports and references
+
+## 2.4.2
+
+- Forked and republished as `flutter_ble_peripheral_slave`
+- Repository moved to https://github.com/FaroukBoussarsar/ble_peripheral
+
 ## 2.4.0
 
 - BreakingChange: `onCharacteristicSubscriptionChange` also send `String? name`

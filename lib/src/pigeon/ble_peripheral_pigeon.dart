@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:ble_peripheral/ble_peripheral.dart';
-import 'package:ble_peripheral/src/pigeon/ble_callback_handler.dart';
-import 'package:ble_peripheral/src/ble_peripheral_interface.dart';
+import 'package:flutter_ble_peripheral_slave/flutter_ble_peripheral_slave.dart';
+import 'package:flutter_ble_peripheral_slave/src/pigeon/ble_callback_handler.dart';
+import 'package:flutter_ble_peripheral_slave/src/ble_peripheral_interface.dart';
 import 'package:flutter/foundation.dart';
 
 class BlePeripheralPigeon extends BlePeripheralInterface {

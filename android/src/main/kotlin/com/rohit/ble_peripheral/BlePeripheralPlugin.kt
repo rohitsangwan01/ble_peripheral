@@ -186,23 +186,65 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
         val char =
             characteristicId.findCharacteristic() ?: throw Exception("Characteristic not found")
         char.value = value
+
+        val MAX_NOTIFICATION_RETRIES = 3
+        val RETRY_DELAY_MILLIS = 1000L
+
         if (deviceId != null) {
             val device = bluetoothDevicesMap[deviceId] ?: throw Exception("Device not found")
             handler?.post {
-                gattServer?.notifyCharacteristicChanged(
-                    device,
-                    char,
-                    true
-                )
-            }
-        } else {
-            bluetoothDevicesMap.forEach { (_, device) ->
-                handler?.post {
-                    gattServer?.notifyCharacteristicChanged(
+                // Attempt to send notification with retries
+                var success = false
+                var retries = 0
+
+                while (!success && retries < MAX_NOTIFICATION_RETRIES) {
+                    val res = gattServer?.notifyCharacteristicChanged(
                         device,
                         char,
-                        true
+                        false  // Changed to false - this might help with some client implementations
                     )
+
+                    if (res == true) {
+                        success = true
+                        Log.d(TAG, "Notification sent successfully to device ${device.address} on attempt $retries")
+                    } else {
+                        retries++
+                        Log.e(TAG, "Notification attempt $retries failed for device ${device.address}. Retrying in $RETRY_DELAY_MILLIS ms")
+                        Thread.sleep(RETRY_DELAY_MILLIS)
+                    }
+                }
+
+                if (!success) {
+                    Log.e(TAG, "Notification failed after $MAX_NOTIFICATION_RETRIES attempts for device ${device.address}")
+                }
+            }
+        } else {
+            bluetoothDevicesMap.forEach { (address, device) ->
+                handler?.post {
+                    // Attempt to send notification with retries
+                    var success = false
+                    var retries = 0
+
+                    while (!success && retries < MAX_NOTIFICATION_RETRIES) {
+                        val res = gattServer?.notifyCharacteristicChanged(
+                            device,
+                            char,
+                            false  // Changed to false
+                        )
+
+                        if (res == true) {
+                            success = true
+                            Log.d(TAG, "Notification sent successfully to device $address on attempt $retries")
+                        } else {
+                            retries++
+                            Log.e(TAG, "Notification attempt $retries failed for device $address. Retrying in $RETRY_DELAY_MILLIS ms")
+                            Thread.sleep(RETRY_DELAY_MILLIS)
+                        }
+                    }
+
+                    if (!success) {
+                        Log.e(TAG, "Notification failed after $MAX_NOTIFICATION_RETRIES attempts for device $address")
+                    }
                 }
             }
         }
@@ -293,7 +335,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                         if (device.bondState == BluetoothDevice.BOND_NONE) {
                             // Wait for bonding
                             listOfDevicesWaitingForBond.add(device.address)
-                            device.createBond()
+                            //device.createBond()
                         } else if (device.bondState == BluetoothDevice.BOND_BONDED) {
                             handler?.post {
                                 gattServer?.connect(device, true)
@@ -305,6 +347,15 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
                                 )
                             }
                         }
+                           handler?.post {
+                                gattServer?.connect(device, true)
+                            }
+                            synchronized(bluetoothDevicesMap) {
+                                bluetoothDevicesMap.put(
+                                    device.address,
+                                    device
+                                )
+                            }
                         onConnectionUpdate(device, status, newState)
                     }
 
@@ -589,7 +640,7 @@ class BlePeripheralPlugin : FlutterPlugin, BlePeripheralChannel, ActivityAware {
 
                 // if waiting for connection and device is bonded
                 val waitingForConnection = listOfDevicesWaitingForBond.contains(device?.address)
-                if (state == BluetoothDevice.BOND_BONDED && device != null && waitingForConnection) {
+                if ( device != null && waitingForConnection) {
                     listOfDevicesWaitingForBond.remove(device.address)
                     handler?.post {
                         gattServer?.connect(device, true)

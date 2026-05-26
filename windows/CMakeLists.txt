@@ -4,7 +4,7 @@ project(${PROJECT_NAME} LANGUAGES CXX)
 cmake_policy(VERSION 3.14...3.25)
 include(FetchContent)
 set(CPPWINRT_VERSION "2.0.220418.1")
-set(PLUGIN_NAME "ble_peripheral_plugin")
+set(PLUGIN_NAME "flutter_ble_peripheral_slave_plugin")
 
 # ############### NuGet intall begin ################
 FetchContent_Declare(nuget
@@ -42,7 +42,7 @@ list(APPEND PLUGIN_SOURCES
 )
 
 add_library(${PLUGIN_NAME} SHARED
-  "include/ble_peripheral/ble_peripheral_plugin_c_api.h"
+  "include/flutter_ble_peripheral_slave/ble_peripheral_plugin_c_api.h"
   "ble_peripheral_plugin_c_api.cpp"
   ${PLUGIN_SOURCES}
 )
@@ -67,7 +67,7 @@ target_include_directories(${PLUGIN_NAME} INTERFACE
   "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_link_libraries(${PLUGIN_NAME} PRIVATE flutter flutter_wrapper_plugin)
 
-set(ble_peripheral_bundled_libraries
+set(flutter_ble_peripheral_slave_bundled_libraries
   ""
   PARENT_SCOPE
 )

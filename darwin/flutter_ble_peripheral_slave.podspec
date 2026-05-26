@@ -1,17 +1,17 @@
 #
 # To learn more about a Podspec see http://guides.cocoapods.org/syntax/podspec.html.
-# Run `pod lib lint ble_peripheral.podspec` to validate before publishing.
+# Run `pod lib lint flutter_ble_peripheral_slave.podspec` to validate before publishing.
 #
 Pod::Spec.new do |s|
-  s.name             = 'ble_peripheral'
-  s.version          = '0.0.1'
-  s.summary          = 'A new Flutter plugin project.'
+  s.name             = 'flutter_ble_peripheral_slave'
+  s.version          = '2.4.3'
+  s.summary          = 'Ble peripheral is a Flutter plugin that allows you to use your device as Bluetooth Low Energy (BLE) peripheral'
   s.description      = <<-DESC
-A new Flutter plugin project.
+Ble peripheral is a Flutter plugin that allows you to use your device as Bluetooth Low Energy (BLE) peripheral
                        DESC
-  s.homepage         = 'http://example.com'
+  s.homepage         = 'https://github.com/FaroukBoussarsar/ble_peripheral'
   s.license          = { :file => '../LICENSE' }
-  s.author           = { 'Your Company' => 'email@example.com' }
+  s.author           = { 'Farouk Boussarsar' => 'farouk@example.com' }
   s.source           = { :path => '.' }
   s.source_files = 'Classes/**/*'
   s.ios.dependency 'Flutter'

@@ -1,4 +1,4 @@
-#include "include/ble_peripheral/ble_peripheral_plugin_c_api.h"
+#include "include/flutter_ble_peripheral_slave/ble_peripheral_plugin_c_api.h"
 
 #include <flutter/plugin_registrar_windows.h>
 

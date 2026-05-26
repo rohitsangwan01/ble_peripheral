@@ -35,7 +35,7 @@ class BleCharacteristic {
   List<int> permissions;
   List<BleDescriptor>? descriptors;
   Uint8List? value;
-  
+
   BleCharacteristic(
     this.uuid,
     this.value,

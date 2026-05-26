@@ -98,9 +98,9 @@ namespace ble_peripheral
         GattCharacteristicObject *FindGattCharacteristicObject(std::string characteristicId);
 
         void ServiceProvider_AdvertisementStatusChanged(GattServiceProvider const &sender, GattServiceProviderAdvertisementStatusChangedEventArgs const &);
-        winrt::fire_and_forget SubscribedClientsChanged(GattLocalCharacteristic const &sender, IInspectable const &);
-        winrt::fire_and_forget ReadRequestedAsync(GattLocalCharacteristic const &, GattReadRequestedEventArgs args);
-        winrt::fire_and_forget WriteRequestedAsync(GattLocalCharacteristic const &, GattWriteRequestedEventArgs args);
+        winrt::fire_and_forget SubscribedClientsChanged(GattLocalCharacteristic sender, IInspectable const &);
+        winrt::fire_and_forget ReadRequestedAsync(GattLocalCharacteristic, GattReadRequestedEventArgs args);
+        winrt::fire_and_forget WriteRequestedAsync(GattLocalCharacteristic, GattWriteRequestedEventArgs args);
         std::string ParseBluetoothError(BluetoothError error);
         bool AreAllServicesStarted();
 

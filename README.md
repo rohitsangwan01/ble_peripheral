@@ -1,6 +1,8 @@
-# Ble Peripheral
+# Flutter BLE Peripheral Slave
 
-[![ble_peripheral version](https://img.shields.io/pub/v/ble_peripheral?label=ble_peripheral)](https://pub.dev/packages/ble_peripheral)
+[![flutter_ble_peripheral_slave version](https://img.shields.io/pub/v/flutter_ble_peripheral_slave?label=flutter_ble_peripheral_slave)](https://pub.dev/packages/flutter_ble_peripheral_slave)
+
+> **Note:** This is a fork of [ble_peripheral](https://github.com/rohitsangwan01/ble_peripheral) maintained by [@FaroukBoussarsar](https://github.com/FaroukBoussarsar)
 
 Ble peripheral is a Flutter plugin that allows you to use your device as Bluetooth Low Energy (BLE) peripheral
 
@@ -146,5 +148,7 @@ For `MacOS`, make sure to enable bluetooth from Xcode
 Should work out of box on Windows
 
 ## Note
+
+⚠️ **Important Platform Limitation**: iOS devices cannot discover BLE peripherals advertised by macOS or iOS devices due to Apple's privacy filters. Android devices work perfectly. See [PLATFORM_LIMITATIONS.md](PLATFORM_LIMITATIONS.md) for details and workarounds.
 
 Feel free to contribute or report any bug!

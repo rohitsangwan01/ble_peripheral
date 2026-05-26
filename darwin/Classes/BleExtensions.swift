@@ -82,13 +82,13 @@ extension BleCharacteristic {
 extension String {
     func findCharacteristic() -> CBMutableCharacteristic? {
         return characteristicsList.first { ch in
-            ch.uuid.uuidString == self
+            ch.uuid.uuidString.lowercased() == self.lowercased()
         }
     }
 
     func findService() -> CBMutableService? {
         return servicesList.first { ch in
-            ch.uuid.uuidString == self
+            ch.uuid.uuidString.lowercased() == self.lowercased()
         }
     }
 }
